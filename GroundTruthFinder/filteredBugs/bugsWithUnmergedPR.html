@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset='UTF-8'>
+			<title>JSON To HTML using codebeautify.org</title>
+		</head>
+		<body>
+			<table border=1>
+				<thead>
+					<tr>
+						<th>title</th>
+						<th>html_url</th>
+						<th>body</th>
+						<th>state</th>
+						<th>pull_request</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						<td>land_detector: MC remove relaxed throttle threshold</td>
+						<td>https://github.com/PX4/PX4-Autopilot/pull/15569</td>
+						<td>There are intermittent MAVSDK mission test failures due to land detector false ground contact.
+
+For example this mission.
+https://logs.px4.io/plot_app?log=70226385-5b90-4310-91ca-8fe2be3e7948
+
+
+							<img width="1466" alt="Screen Shot 2020-08-17 at 7 57 29 PM" src="https://user-images.githubusercontent.com/84712/90455368-e563f800-e0c3-11ea-9859-c1ffb9661a74.png">
+
+Debatably I think we could blame the somewhat unrealistic gazebo iris model with apparently ~20% hover and MPC_THR_MIN at 12%.
+
+
+								<img width="1468" alt="Screen Shot 2020-08-17 at 7 58 16 PM" src="https://user-images.githubusercontent.com/84712/90455437-0f1d1f00-e0c4-11ea-8a77-3682f820fe3b.png">
+
+As a precaution (and SITL test failure workaround) I'm going to remove the land detector ground contact optimization that tightens the throttle threshold if the hover thrust estimate is valid.
+
+Could we also take a closer look at making these models more realistic?
+								</td>
+								<td>closed</td>
+								<td>https://api.github.com/repos/PX4/PX4-Autopilot/pulls/15569|https://github.com/PX4/PX4-Autopilot/pull/15569|https://github.com/PX4/PX4-Autopilot/pull/15569.diff|https://github.com/PX4/PX4-Autopilot/pull/15569.patch|null</td>
+							</tr>
+							<tr>
+								<td>Fix and add warnings for RTL with invalid landing</td>
+								<td>https://github.com/PX4/PX4-Autopilot/pull/13873</td>
+								<td>**Describe problem solved by this pull request**
+Currently RTL skips this segment of code which displays an error if the vehicle is unable to use the mission.:
+`} else {
+				// Otherwise use regular RTL.
+				mavlink_log_critical(_navigator->get_mavlink_log_pub(), "RTL: unable to use mission landing");
+			}`
+We have also ran into issues with users missing this initial message. This has lead to users being confused as to why the fixedwing vehicle is not landing. 
+
+**Describe your solution**
+This gets rid of the dead code introduced previously, and fixes the bug with the warning message not being displayed. It also adds a message that displays every 30 seconds warning the user that the vehicle cannot use the mission landing. 
+
+**Describe possible alternatives**
+The best alternative would be to reject invalid missions and keep the current valid mission on the vehicle. This would get rid of an invalid landing being uploaded to the vehicle.  
+
+**Test data / coverage**
+This was tested in SITL
+https://review.px4.io/plot_app?log=cfa987ce-62c4-4a50-b018-ca3456d892c3
+
+A version of this has also been in use on our Fixedwing vehicles since August. 
+</td>
+								<td>closed</td>
+								<td>https://api.github.com/repos/PX4/PX4-Autopilot/pulls/13873|https://github.com/PX4/PX4-Autopilot/pull/13873|https://github.com/PX4/PX4-Autopilot/pull/13873.diff|https://github.com/PX4/PX4-Autopilot/pull/13873.patch|null</td>
+							</tr>
+							<tr>
+								<td>[WIP] VTOL attitude control: fix pusher support in hover</td>
+								<td>https://github.com/PX4/PX4-Autopilot/pull/12899</td>
+								<td>Pusher assist in position control is broken currently. Reason for it is that _pusher_throttle  is only updated every time https://github.com/PX4/Firmware/blob/69475a172bf743fb4b735d5e5595d8a23f2dba66/src/modules/vtol_att_control/vtol_att_control_main.cpp#L420 is executed, and otherwise _pusher_throttle=0 is set. And update_mc_state is only updated when mc_virtual_attitude_sp is updated.
+
+Also reproducable in SITL (unsteady actuator_controls(3), see below)
+
+I made a quick fix for that by just filling the actuator outputs if the MC or FW virtual attitude sp have been updated. 
+
+
+**Test data / coverage**
+SITL: before fix:
+![image](https://user-images.githubusercontent.com/26798987/64269866-efd0c480-cf3a-11e9-951d-5bf900f8cada.png)
+After the fix:
+![image](https://user-images.githubusercontent.com/26798987/64269946-0bd46600-cf3b-11e9-9cf1-4e9a3d7397ed.png)
+
+
+Bench Test:
+
+https://review.px4.io/plot_app?log=afef455a-a52a-4055-9013-4ff2e4e5eecb
+
+
+</td>
+								<td>closed</td>
+								<td>https://api.github.com/repos/PX4/PX4-Autopilot/pulls/12899|https://github.com/PX4/PX4-Autopilot/pull/12899|https://github.com/PX4/PX4-Autopilot/pull/12899.diff|https://github.com/PX4/PX4-Autopilot/pull/12899.patch|null</td>
+							</tr>
+							<tr>
+								<td>nxp_fmuk66-v3 disable px4flow temporarily</td>
+								<td>https://github.com/PX4/PX4-Autopilot/pull/12632</td>
+								<td>As a precaution while we debug the underlying issue.
+
+@davids5 @igalloway 
+
+
+https://review.px4.io/plot_app?log=0bcf24d7-b989-4283-a11d-c7443d9fd10d
+
+Very high cpu usage in the I2C WQ from the px4flow.</td>
+								<td>closed</td>
+								<td>https://api.github.com/repos/PX4/PX4-Autopilot/pulls/12632|https://github.com/PX4/PX4-Autopilot/pull/12632|https://github.com/PX4/PX4-Autopilot/pull/12632.diff|https://github.com/PX4/PX4-Autopilot/pull/12632.patch|null</td>
+							</tr>
+							<tr>
+								<td>fix loiter yaw error for multirotor(#10262)</td>
+								<td>https://github.com/PX4/PX4-Autopilot/pull/10297</td>
+								<td>**Test data / coverage**
+before fix
+https://logs.px4.io/plot_app?log=58f3d121-cc66-4b11-9436-3ec3136b23c3
+after fix
+https://logs.px4.io/plot_app?log=8a210ac9-fd87-4f63-8421-03a710e24153
+
+fixes #10262</td>
+								<td>closed</td>
+								<td>https://api.github.com/repos/PX4/PX4-Autopilot/pulls/10297|https://github.com/PX4/PX4-Autopilot/pull/10297|https://github.com/PX4/PX4-Autopilot/pull/10297.diff|https://github.com/PX4/PX4-Autopilot/pull/10297.patch|null</td>
+							</tr>
+							<tr>
+								<td>mc_pos_control: fix position setpoint overshoot</td>
+								<td>https://github.com/PX4/PX4-Autopilot/pull/8240</td>
+								<td>This PR addresses massive position setpoint overshoot caused by `_vel_sp_prev` windup. The bug is critical for offboard mode usage.
+
+Flying in offboard mode we had constantly observed position setpoint overshoots in case of flight to distant setpoint. E.g., here we are flying back and forth in offboard mode: https://review.px4.io/plot_app?log=61a675f6-020a-462f-b1cf-b58974460d44. Overshoots really stand out:
+
+![Overshoots](https://user-images.githubusercontent.com/20798956/32437968-ff23a816-c2f9-11e7-8745-67fef6ea073d.png)
+
+Here is plot of y, vy and corresponding setpoints for 1000 m flight in offboard in SITL on current master (https://logs.px4.io/plot_app?log=92b7ba3c-e2f7-4094-98a3-05e8b5a8493f):
+
+![master](https://user-images.githubusercontent.com/20798956/32437865-b5007b24-c2f9-11e7-9580-2f456f57f81b.png)
+
+As can be seen on the plot, copter have overshooted setpoint for over 60 m because velocity setpoint started to drop from max forward velocity when copter already was 50 m ahead of setpoint.
+
+After debugging of mc_pos_control_main.cpp it became clear that cause of overshoots is windup of `_vel_sp_prev(0)` and `(1)`. The reason is [this fragment](https://github.com/PX4/Firmware/blob/aa699cf4b7e63d9bf17dc2ba2b95e2e02224a6ab/src/modules/mc_pos_control/mc_pos_control_main.cpp#L2455) of `calculate_velocity_setpoint()`: 
+
+```c++
+if (!_control_mode.flag_control_auto_enabled) {
+	vel_sp_slewrate(dt);
+}
+
+_vel_sp_prev = _vel_sp;
+
+/* ... */
+
+/* make sure velocity setpoint is constrained in all directions (xyz) */
+float vel_norm_xy = sqrtf(_vel_sp(0) * _vel_sp(0) + _vel_sp(1) * _vel_sp(1));
+
+if (vel_norm_xy > _vel_max_xy) {
+	_vel_sp(0) = _vel_sp(0) * _vel_max_xy / vel_norm_xy;
+	_vel_sp(1) = _vel_sp(1) * _vel_max_xy / vel_norm_xy;
+}
+```
+So `vel_sp_slewrate()` never see constrained velocity and `_vel_sp_prev` continues to rise to hunders and thousands m/s. When copter approaches the setpoint, `_vel_sp_prev` drops, but it's change rate is limited by `vel_sp_slewrate()`. Because of this windup `_vel_sp` can't begin to lower at time and vehicle overshoots. Overshoots are negligible in AUTO mode because mc_pos_control moves position setpoint so it is always close to the vehicle.
+
+It would be more correct to address this moving `_vel_sp_prev = _vel_sp` to the end of control cycle, but this change causes incorrect behavior of smooth takeoff limiter so I had to move velocity constraining before `_vel_sp_prev` assignment, leaving smooth takeoff limit after it.
+
+This is the same 1000 m flight in SITL after fix (https://logs.px4.io/plot_app?log=d5bd2519-432c-446a-b8c9-fd021c2fdab6):
+
+![fix](https://user-images.githubusercontent.com/20798956/32439298-21fcc03e-c2ff-11e7-963c-92051e217d9e.png)
+
+@MaEtUgR, @Stifael, please review.</td>
+								<td>closed</td>
+								<td>https://api.github.com/repos/PX4/PX4-Autopilot/pulls/8240|https://github.com/PX4/PX4-Autopilot/pull/8240|https://github.com/PX4/PX4-Autopilot/pull/8240.diff|https://github.com/PX4/PX4-Autopilot/pull/8240.patch|null</td>
+							</tr>
+							<tr>
+								<td>offboard land detection</td>
+								<td>https://github.com/PX4/PX4-Autopilot/pull/19560</td>
+								<td>**Describe problem solved by this pull request**
+We use offboard mode to control our quadrotor.
+We generate a trajectory in z position with consistent derivatives.
+When we land, our z position increase downward, z speed converge to our target (1m/s downward) and our z acceleration converges to 0 when the speed stabilizes.
+
+The issue is that when we hit the ground, land detector detect it but the position control detect that we want to takeoff so thrust increase and it never disarm.
+
+The takeoff detection is due to our z acceleration been about 0 but with a very small oscillation that makes point upward  by moments.
+
+Here is a log with one false detection : https://review.px4.io/plot_app?log=ced2541e-fd20-4fd3-88c6-2f284262bc95
+
+**Describe your solution**
+in offboard mode, if we have a valid z position setpoint superior (so more downward) than estimated, do not consider we want to take off. Same thing on z speed.
+
+This solution will change the behavior: in offboard mode, if we have a valid z position setpoint more downward than estimated and a speed setpoint pointing upward, we will no longer consider we want to take off.</td>
+								<td>open</td>
+								<td>https://api.github.com/repos/PX4/PX4-Autopilot/pulls/19560|https://github.com/PX4/PX4-Autopilot/pull/19560|https://github.com/PX4/PX4-Autopilot/pull/19560.diff|https://github.com/PX4/PX4-Autopilot/pull/19560.patch|null</td>
+							</tr>
+							<tr>
+								<td>mc_pos_control: filter velocity before derivative and switch to AlphaFilter</td>
+								<td>https://github.com/PX4/PX4-Autopilot/pull/19505</td>
+								<td>Investigating the root cause of small oscillations in multicopter position control modes. One possibility is the noisy velocity derivative.
+
+https://logs.px4.io/plot_app?log=e807f10a-f1d4-4527-b59f-9a4da6ff770e
+
+![Screenshot from 2022-04-19 12-31-30](https://user-images.githubusercontent.com/84712/164066526-c6b79e50-c60f-49aa-8564-5c310c3cc067.png)
+
+
+I believe this is coming from the acceleration (velocity derivative) used by the multicopter position controller when `MPC_XY_VEL_D_ACC` is non-zero.
+![Screenshot from 2022-04-19 14-04-14](https://user-images.githubusercontent.com/84712/164067478-5e618b57-542e-4311-88b2-a50da9474f00.png)
+![Screenshot from 2022-04-19 14-09-30](https://user-images.githubusercontent.com/84712/164068328-c18ccf45-3fd0-4d30-a27b-d277d64420b5.png)
+
+</td>
+								<td>open</td>
+								<td>https://api.github.com/repos/PX4/PX4-Autopilot/pulls/19505|https://github.com/PX4/PX4-Autopilot/pull/19505|https://github.com/PX4/PX4-Autopilot/pull/19505.diff|https://github.com/PX4/PX4-Autopilot/pull/19505.patch|null</td>
+							</tr>
+							<tr>
+								<td></td>
+								<td>&nbsp</td>
+								<td>&nbsp</td>
+								<td>&nbsp</td>
+								<td>&nbsp</td>
+							</tr>
+						</tbody>
+					</table>
+				</body>
+			</html>

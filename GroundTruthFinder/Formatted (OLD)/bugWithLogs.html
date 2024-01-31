@@ -1,0 +1,3509 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset='UTF-8'>
+			<title>JSON To HTML using codebeautify.org</title>
+		</head>
+		<body>
+			<table border=1>
+				<thead>
+					<tr>
+						<th>title</th>
+						<th>html_url</th>
+						<th>body</th>
+						<th>state</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						<td>ekf2: reinit baro height on sensor or calibration change</td>
+						<td>https://github.com/PX4/PX4-Autopilot/pull/20818</td>
+						<td> - handle reset on delayed time horizon
+ - avoid unnecessary preflight failures due to initial primary baro change (eg external DroneCAN barometer starting later than internal)
+
+https://review.px4.io/plot_app?log=0afe68b4-721d-4827-bf18-57c8f267592d
+![Screenshot from 2022-12-21 17-19-25](https://user-images.githubusercontent.com/84712/209013340-60b324c5-f6e1-4b36-8bc8-920140f2d747.png)
+
+![Screenshot from 2022-12-21 17-20-40](https://user-images.githubusercontent.com/84712/209013494-fd681f7d-af88-458f-927c-49dd50fc9ac7.png)
+
+</td>
+						<td>closed</td>
+					</tr>
+					<tr>
+						<td>Fix invalid offboard setpoints for fw pos control</td>
+						<td>https://github.com/PX4/PX4-Autopilot/pull/20669</td>
+						<td>### Solved Problem
+This commit fixes a regression that caused problems when trying to use offboard control with fixedwings (or VTOLs in fixedwing mode)
+
+The problem was that all offboard setpoints were considered invalid in offboard mode:
+![image](https://user-images.githubusercontent.com/5248102/203829851-55e1195d-9498-44be-aa6e-1e67db5f7ae5.png)
+![image](https://user-images.githubusercontent.com/5248102/203829872-ccfb20a0-c004-4592-bbfe-f7160d51c7bd.png)
+
+### Solution
+This was a regression introduced by https://github.com/PX4/PX4-Autopilot/pull/19942, where the valid flag in position_setpoint_triplet was no longer being used and the offboard logic was left out.
+
+### Test coverage
+Tested in SITL Gazebo and publishing offboard setpoints
+- Flight logs before PR: https://review.px4.io/plot_app?log=b46b490c-69f8-4fe1-a47f-b16fc6ab8b54
+- Flight logs after PR: https://review.px4.io/plot_app?log=ced912ac-1b8d-427e-8829-90337d208482
+</td>
+						<td>closed</td>
+					</tr>
+					<tr>
+						<td>Navigator: fix init of _mission_item, plus add guards for using mision_item.loiter_radius</td>
+						<td>https://github.com/PX4/PX4-Autopilot/pull/20464</td>
+						<td>
+## Describe problem solved by this pull request
+This is to address what was reported here: https://github.com/PX4/PX4-Autopilot/pull/19928#issuecomment-1277934841
+
+What I think was going on:
+- RTL triggered a couple of times, and each time it was above the return altitude, so didn’t have to climb. In the v1.13 RTL logic, as pointed out [here](https://github.com/PX4/PX4-Autopilot/pull/19928#issuecomment-1284454859), the mission_item.loiter_radius field wasn't filled, and it just kept using it as initialized. 
+- The initialization happens in the constructor, and it initializes it to `_navigator->get_loiter_radius()`, which itself just gets the value of `_param_nav_loiter_rad`. At this moment, the params are though not yet fetched (happens [here](https://github.com/PX4/PX4-Autopilot/blob/c267cf71c3aa57fbbe544d02f3b25650f029384d/src/modules/navigator/navigator_main.cpp#L151))
+- in the [flight](https://review.px4.io/plot_app?log=4a466655-3c02-4f78-ab9e-1d90bca4b8e3) linked in the above mentioned issue , the initialisation value of it seems to have been 3.9e32, which was then passed through to the `position_setpoint_current.loiter_radius` (there is only a check for if(>0)), and the vehicle started on it's voyage around the solar system
+
+
+![image](https://user-images.githubusercontent.com/26798987/197223431-d4a5a3c5-33ee-4655-8974-32d73cfc8abb.png)
+
+
+## Describe your solution
+On current main we by accident fixed this particular issue already,[ as we explicitly set the loiter_radius](https://github.com/PX4/PX4-Autopilot/blob/ed558e199faab703ea3fb352db16512981fdb7ec/src/modules/navigator/rtl.cpp#L407) in every state of the RTL state machine. This wasn't the case in v1.13, but I guess we should back port it.
+Additionally we should change the initialization of mission_item. I propose here to initialize to 0, which is considered as "invalid" before and not used in then (checks for ISFINITE and >FLT_EPS). 
+I did the same for mission_item.acceptance_radius. 
+
+## Describe possible alternatives
+- do we have a way to update the params before the constructor is called?
+- should we initialize `mission_item` fields consistently to NAN instead of some to NAN (currently yaw, lat, lon), and some to 0, and some not at all (e.g. altitude). And is this initialization in the constructor even needed?
+
+</td>
+						<td>closed</td>
+					</tr>
+					<tr>
+						<td>Fixedwing RTL failsafe makes the vehicle crash right after takeoff</td>
+						<td>https://github.com/PX4/PX4-Autopilot/issues/20260</td>
+						<td>## Describe the bug
+When running takeoff in SITL without QGC running, the plane immediately goes into failsafe, goes into RTL and then crases
+
+## To Reproduce
+Steps to reproduce the behavior: (Make sure no QGC is running)
+1. Start plane SITL simulation
+```
+make px4_sitl gazebo_plane
+```
+2. Command takeoff
+```
+commander takeoff
+```
+
+## Expected behavior
+- Vehicle should either takes off or rejects the takeoff command
+
+## Log Files and Screenshots
+![plane_bug](https://user-images.githubusercontent.com/5248102/191316218-3a925953-5b73-4fca-82e9-a51dd60b0ded.gif)
+- Flight log: https://review.px4.io/plot_app?log=0314e693-cb1e-4675-a7ef-bad36473a129
+- Log:
+```
+pxh> commander takeoff
+pxh> INFO  [commander] Armed by internal command	
+INFO  [tone_alarm] arming warning
+INFO  [navigator] Using minimum takeoff altitude: 30.00 m	
+INFO  [fw_pos_control_l1] Takeoff on runway	
+INFO  [commander] Takeoff detected	
+WARN  [commander] Failsafe enabled: no datalink	
+INFO  [commander] Failsafe mode activated	
+INFO  [tone_alarm] battery warning (fast)
+INFO  [navigator] RTL: landing at home position.	
+INFO  [navigator] RTL: climb to 589 m (100 m above destination)	
+INFO  [commander] Failsafe mode deactivated	
+WARN  [health_and_arming_checks] Preflight Fail: velocity estimate error
+ERROR [commander] Critical failure detected: lockdown	
+WARN  [commander] Motor failure detected	
+WARN  [health_and_arming_checks] Preflight Fail: velocity estimate error
+```
+
+## Additional context
+</td>
+						<td>closed</td>
+					</tr>
+					<tr>
+						<td>Fix busy loop in gps module when using RTCM</td>
+						<td>https://github.com/PX4/PX4-Autopilot/pull/19906</td>
+						<td>Please use [PX4 Discuss](http://discuss.px4.io/) or [Slack](http://slack.px4.io/) to align on pull requests if necessary. You can then open draft pull requests to get early feedback.
+
+## Describe problem solved by this pull request
+RTCM data message length was increased to 300 bytes without changing data type of integer holding the length.
+This caused an overflow which lead to a busy loop in the gps driver.
+
+## Describe your solution
+Use a uint16.
+
+## Describe possible alternatives
+A clear and concise description of alternative solutions or features you've considered.
+
+## Test data / coverage
+How was it tested? What cases were covered? Logs uploaded to https://review.px4.io/ and screenshots of the important plot parts.
+
+## Additional context
+Add any other related context or media.
+</td>
+						<td>closed</td>
+					</tr>
+					<tr>
+						<td>Issue with heading estimation</td>
+						<td>https://github.com/PX4/PX4-Autopilot/issues/19846</td>
+						<td>We are developing a drone with the PX4 firmware, running on a holybro V5x FCU.
+
+We have run into an issue which we can't understand within the team, so I am hoping for someone to help us.
+The issue has happened in multiple flights, but can be easiest seen in the following flight log: 
+[log](https://review.px4.io/plot_app?log=9d997dff-c93e-4d6b-a257-8a581f824e0a)
+
+The heading estimate is very unstable (a jump of >90 degrees at the 1:12 mark), after which the drone is almost uncontrollable, since all orientations are messed up. This has started happening repeatedly, but we have also made more than 10 flights before where the issue did not arise.
+
+I have noticed that the EKFs are also using the internal magnetometer, while it is set at a lower priority and the external magnetometer does produce data.
+
+If anyone can assist (even if only giving some pointers on how to analyse this issue) that'd be greatly appreciated.</td>
+						<td>closed</td>
+					</tr>
+					<tr>
+						<td>v1.13.0-beta1 UAVCAN Battery Can't Take Off Due to RTL Time Estimate</td>
+						<td>https://github.com/PX4/PX4-Autopilot/issues/19642</td>
+						<td>I am unable to take off on v1.13.0-beta1 using a uavcan battery in any mode. As soon as I start throttling up, it throws a "Remaining flight time low, returning to land" error and switches into RTL.
+
+https://review.px4.io/plot_app?log=761b3a20-94ae-43d9-aba3-1205751f58ce
+https://review.px4.io/plot_app?log=25386252-9972-4f8f-bac0-716c54559f68
+
+Beta on a different non uavcan battery drone. ARK GPS + ARK Flow flies well.
+https://review.px4.io/plot_app?log=3618593a-4485-4606-9236-2316af742a07
+
+Comparing the two, in the failure case, the RTL Time Estimate values are very low, below 100. But in the working case, the values are in the 1000000's.</td>
+						<td>closed</td>
+					</tr>
+					<tr>
+						<td>X500V2 kit Jumps when switching to AltHold</td>
+						<td>https://github.com/PX4/PX4-Autopilot/issues/19046</td>
+						<td>After trying to fly with the Holybro X500 V2 kit which flies well with Stabilized mode, I noticed that the drone jumps up and down when switching to Altitude mode. The kit is equipped with Pixhawk 5X. A log is also as below:
+
+https://review.px4.io/plot_app?log=21beb351-f2bb-4767-b71f-725946098ec0
+
+I found something which might be relevant [here](https://github.com/PX4/PX4-Autopilot/issues/11717) but not sure if it is the case!!! 
+</td>
+						<td>closed</td>
+					</tr>
+					<tr>
+						<td>ekf: force fallback to baro if GPS is stopped while in GPS height mode</td>
+						<td>https://github.com/PX4/PX4-Autopilot/pull/18458</td>
+						<td>Otherwise, no height aiding source is used.
+
+fixes https://px4.slack.com/archives/C0V533X4N/p1634539666104800
+log with issue: https://review.px4.io/plot_app?log=56a6fb8b-b804-4a50-974b-3f88d04c2cbe</td>
+						<td>closed</td>
+					</tr>
+					<tr>
+						<td>Catapult launch: Motor delay not working</td>
+						<td>https://github.com/PX4/PX4-Autopilot/issues/18354</td>
+						<td>PX4 (SW 1.12.3 / HW holibro pixhawk 4)
+The Motor starts immedialtely after launch is detected.
+This causes damage to the propeller, because it hits the catapult.
+**Actual behaviour:**
+If Accelerometer threshold > LAUN_CAT_A    then  Motor starts immediately
+**Expected behaviour:**
+If Accelerometer threshold > LAUN_CAT_A    then  Motorstart is delayed by value of LAUN_CATMDEL  waits then motors starts.
+
+Parameters: LAUN_CAT_MDEL and LAUN_CAT_T have no effect. Motor startup is not delayed as expected.
+https://review.px4.io/plot_app?log=e1c738f7-7be6-4f54-9af0-c12667ef83d9
+This was working in 1.9.1
+
+</td>
+						<td>closed</td>
+					</tr>
+					<tr>
+						<td>Fix srf05 driver.</td>
+						<td>https://github.com/PX4/PX4-Autopilot/pull/18262</td>
+						<td>Please use [PX4 Discuss](http://discuss.px4.io/) or [Slack](http://slack.px4.io/) to align on pull requests if necessary. You can then open draft pull requests to get early feedback.
+
+**Describe problem solved by this pull request**
+A clear and concise description of the problem this proposed change will solve.
+E.g. For this use case I ran into...
+
+**Describe your solution**
+A clear and concise description of what you have implemented.
+
+**Describe possible alternatives**
+A clear and concise description of alternative solutions or features you've considered.
+
+**Test data / coverage**
+How was it tested? What cases were covered? Logs uploaded to https://review.px4.io/ and screenshots of the important plot parts.
+
+**Additional context**
+Add any other related context or media.
+</td>
+						<td>closed</td>
+					</tr>
+					<tr>
+						<td>1.12 Release everything great except Weather Vane</td>
+						<td>https://github.com/PX4/PX4-Autopilot/issues/17911</td>
+						<td>**Describe the bug**
+since the beginning of 2021 Weather Vane no longer works and also in the 1.12.0 release. Is there a trick to activate WV, or is something important missing?
+
+**To Reproduce**
+Convergence Airframe
+gps+HereFlow
+USB disabled to have enough ram left 
+(without airspeed sensor)
+Forward Thrust enabled
+Enough wind
+enable wv
+start position, mission or rtl
+
+**Expected behavior**
+WV should work and turn the aircraft into the wind from a slight roll inclination.
+like it was in 1.11 with the same setup
+
+**Log Files and Screenshots**
+https://review.px4.io/plot_app?log=a8f081af-ee68-42a0-81e4-71768cec0ed2</td>
+						<td>closed</td>
+					</tr>
+					<tr>
+						<td>Fix bug in external Quadchute trigger (from PR 16691)</td>
+						<td>https://github.com/PX4/PX4-Autopilot/pull/17695</td>
+						<td>Fixes a bug introduced with https://github.com/PX4/PX4-Autopilot/pull/16691. (@dagar @sfuhrer @RomanBapst )
+
+**Describe problem solved by this pull request**
+Eli Vigdorchik ran into an undesired external quadchute during one of his test flights as reported on slack (https://px4.slack.com/archives/C39C4E709/p1622652580039900). Log here: https://review.px4.io/plot_app?log=26c65922-793b-4bad-88fa-86f58b97eb82 . For some reason Param2 of the command is set to 3, triggering the Quadchute instead of doing a normal back transition during RTL. I was able to reproduce in SITL on v1.12.0-beta and on master. I guess the issue is a badly initialized / old value of param2 floating around somewhere.
+https://logs.px4.io/plot_app?log=efaae0f0-a8a8-494c-b32d-6e041689836f
+https://logs.px4.io/plot_app?log=e177614d-a4c1-4ebf-97ca-6ed6fb8cf420
+
+**Describe your solution**
+Explicitly set Param2 to 0.0f in all occurrences where a normal BT is desired (I searched for all occurrences of *DO_VTOL_TRANSITION in the code).
+
+I also added a check on NANs. If param2 is a NAN, then _immediate_transition is false too.
+
+**Describe possible alternatives**
+- 
+
+**Test data / coverage**
+Same procedure, i.e. Position mode flight with RTL triggered over QGC:
+https://logs.px4.io/plot_app?log=7cc61dad-7145-4e81-9ee3-f7c84dd04ef9
+
+I also tried manual transitions, transitions over QGC, missions with VTOL Land and normal Land items, `commander transition` and switching to Land mode via QGC. I couldn't provoke any external quadchutes. Did I miss another option to get into back transition?
+
+**Additional context**
+Follow up of https://github.com/PX4/PX4-Autopilot/pull/16691
+</td>
+						<td>closed</td>
+					</tr>
+					<tr>
+						<td>flashparams: Fix a null-pointer dereference crash</td>
+						<td>https://github.com/PX4/PX4-Autopilot/pull/17385</td>
+						<td>Fix a potential crash caused by calling erase_sector with a null
+sector_descriptor (current_sector == 0).
+
+Signed-off-by: Jukka Laitinen 
+							<jukkax@ssrc.tii.ae>
+
+Please use [PX4 Discuss](http://discuss.px4.io/) or [Slack](http://slack.px4.io/) to align on pull requests if necessary. You can then open draft pull requests to get early feedback.
+
+**Describe problem solved by this pull request**
+A clear and concise description of the problem this proposed change will solve.
+E.g. For this use case I ran into...
+
+**Describe your solution**
+A clear and concise description of what you have implemented.
+
+**Describe possible alternatives**
+A clear and concise description of alternative solutions or features you've considered.
+
+**Test data / coverage**
+How was it tested? What cases were covered? Logs uploaded to https://review.px4.io/ and screenshots of the important plot parts.
+
+**Additional context**
+Add any other related context or media.
+
+							</td>
+							<td>closed</td>
+						</tr>
+						<tr>
+							<td>vtol_att_control: occasional tailsitter forward transition failure</td>
+							<td>https://github.com/PX4/PX4-Autopilot/pull/17310</td>
+							<td>
+Tailsitter VTOLs very occasionally gets stuck with zero roll and pitch angle in multicopter mode after
+a forward transition command is issued.
+
+Log files with the transition failure:
+https://logs.px4.io/plot_app?log=d3c74285-5ae5-430d-a1bd-1b4e6de13938
+https://review.px4.io/plot_app?log=8d86e43c-5570-4480-9123-7e25669c5463
+
+In the above logs you can see the pitch and roll sp set to zero during the forward transition. 
+
+This very rare behavior is triggered by the following events:
+1> a forward transition is triggered either in auto or manual mode.
+2> in the vtol_att_control main loop, if multicopter and fixed wing attitude setpoints are not updated, transition state is not updated
+3> the commander changes the vehicle status to transition mode.
+4> multicopter pos controller initiated  Transition flight task. This results in zero roll and pitch setpoint due to zero acceleration setpoint
+5> now vtol_att_control executes and updates the transition state. Specifically, _q_trans_start and _q_trans_sp are set with zero roll and pitch sp
+6> tilt is evaluated to be NaN, despite _q_trans_sp being normalized. This happens for 25% of all yaw angles when using float datatype. This can be
+   verified using the matrix library
+7> once tilt is evaluated to be NaN, _q_trans_sp is never updated again and is stuck in this state for ever.
+
+This has been fixed by constraining the cos(tilt) within +1 to -1 range
+Further, _q_trans_start and _q_trans_sp are immedietly initialized after a transition event is triggered.
+
+
+</td>
+							<td>closed</td>
+						</tr>
+						<tr>
+							<td>Motors spin up to ~1500 pwm when vehicle is armed. [Control Allocation V1.12.0Beta]</td>
+							<td>https://github.com/PX4/PX4-Autopilot/issues/17220</td>
+							<td>**The bug**
+Motors spin up to ~1500 pwm when vehicle [ Hexacopter Control Allocation V1.12.0Beta] is armed. No response to throttle or stick inputs.
+
+**To Reproduce**
+Steps to reproduce the behavior:
+1. Drone switched on
+2. Arm via RC or QGC
+3. See motors spin to ~1500 pwm
+
+**Expected behavior**
+Motors spin at idle speed (1075 pwm default)
+
+**Log Files and Screenshots**
+https://review.px4.io/plot_app?log=f2aa0437-ef1d-416c-aa16-5c64591922fa
+
+**Drone :**
+- Pixhawk 4, hexacopter
+- 6 x motors connected to PX4 IO out, and 6 x servos connected to FMU out
+
+**Firmware:**
+- px4 v1.12.0 beta1 (935c5df)
+- Control allocation hexacopter (6003_hexa_x_ctrlalloc)
+
+**Additional context**
+- Tried the same setup with normal hexacopter airframe (6001_hexa_x), the issue did not show up.
+- CA_ACTX parameters have MIN 0, MAX 1
+- Changing PWM_MAIN_MIN did not affect the issue
+- Throttling up and down shows no changes in motor PWM
+</td>
+							<td>closed</td>
+						</tr>
+						<tr>
+							<td>HITL Simulation very jumpy</td>
+							<td>https://github.com/PX4/PX4-Autopilot/issues/16670</td>
+							<td>**Describe the bug**
+I performed HITL Simulation with Pixhawk 1 hardware using 1.10.2 firmware version with jMAVsim simulator. The controller performance for a simple mission was very jumpy and not smooth at all.  
+
+
+**To Reproduce**
+Steps to reproduce the behavior:
+1. Flash the [1.10.2 firmware](https://github.com/PX4/PX4-Autopilot/releases/tag/v1.10.2) on Pixhawk 1.
+2. Follow the steps mentioned in this [doc](https://docs.px4.io/master/en/simulation/hitl.html#setting-up-hitl)  on how to set up the QGC for HITL.
+3. Follow the steps mentioned [here](https://docs.px4.io/master/en/simulation/hitl.html#jmavsim-quadrotor-only) for starting the jMAVSim simulator in HITL mode.
+4. Create a simple mission, upload it and start. Follow the instructions mentioned [here](https://docs.px4.io/master/en/simulation/hitl.html#fly-an-autonomous-mission-in-hitl) .
+5. Observe the jumpy behaviour
+
+**Expected behavior**
+I expect a smooth controller performance. 
+
+**Log Files and Screenshots**
+- The log flight review can be found [here](https://review.px4.io/plot_app?log=ef92140a-b1bc-4c82-80c6-48ccb6224838). 
+- The video of the quadcopter performing the mission in jMAVSim can be seen [here](https://drive.google.com/file/d/13PI-148FiCjFmpaoCSy16xiPDDERk-RD/view?usp=sharing).
+
+</td>
+							<td>closed</td>
+						</tr>
+						<tr>
+							<td>PX4 Rover, mission mode doesn't work in a real vehicle.</td>
+							<td>https://github.com/PX4/PX4-Autopilot/issues/16586</td><td>**Describe the bug**
+In SITL rover in master mission mode works in qgroundcontrol with takeoff waypoint. but in the a real vehicle in mission mode,
+rover stands still. it arms and works in stabilized mode, but does nothing on the mission mode.
+
+**To Reproduce**
+Steps to reproduce the behavior:
+1. Upload any mission to a rover that is working in stabilized mode.
+2. switch to mission mode (either from the transmitter or from the qgc )
+3. it goes to mission mode (shows in qgc)
+4. actuators doesn't respond.
+
+**Expected behavior**
+Rover should navigate the mission just like in the SITL
+
+**Log Files and Screenshots**
+
+log file ----> it's on master, i only did change some comments as i was going through the code. 
+https://review.px4.io/plot_app?log=a108e8e8-a0b8-41ce-93b5-8ed9ef1a7720
+
+
+**Rover Hardware
+- just a generic rover frame with Pixhawk 4 - px4_fmu_v5 with a brushless motor and an esc.
+
+
+</td>
+						<td>closed</td>
+					</tr>
+					<tr>
+						<td>Handle takeoff waypoints for rover</td>
+						<td>https://github.com/PX4/PX4-Autopilot/pull/16297</td>
+						<td>**Describe problem solved by this pull request**
+Previously, rover vehicles were not able to handle Takeoff waypoints. The behavior when a takeoff waypoint was passed to a rover vehicle was:
+- The vehicle would not move since the waypoint was too close
+- The takeoff waypoint would not get accepted since rovers are not able to climb and reach the altitude
+
+I think it might be obvious that one "should not" pass takeoff waypoints to a vehicle. However, QGroundControl only lets you plan a mission that starts with a takeoff waypoint. While this should also be an improvement on the QGC side, I think it is still useful to handle this case on the vehicle side so that the vehicle can still progress with the mission even with a takeoff waypoint
+
+**Describe your solution**
+This adds a special case when handling takeoff waypoints for rover vehicles. The acceptance radius is set to only consider horizontal distance to the waypoint, if the vehicle type is rover.
+
+**Test data / coverage**
+- This was tested in SITL gazebo, with the rover model.
+```
+make px4_sitl gazebo_rover
+```
+This log shows a full mission successfully finished starting with a Takeoff waypoint and finished with a RTL: https://review.px4.io/plot_app?log=25fe983b-44d0-4a11-a7c2-2ab9662c35d4
+</td>
+						<td>closed</td>
+					</tr>
+					<tr>
+						<td>VTOL Tailsitter: Thrust issue during transition</td>
+						<td>https://github.com/PX4/PX4-Autopilot/issues/16057</td>
+						<td>**Describe the bug**
+When we are performing a VTOL transition with a tailsitter type drone We are getting very weird thrust fluctuations. It seems that it's taking two references basically at the same time, I would assume from the MC and FW controllers.
+Also in simulation we don't get this issue.
+
+More over @xdwgood also reported this issue on PX4 slack, thus proving that this issue is on upstream PX4 and not custom software.
+
+**To Reproduce**
+Use a VTOL Tailsitter type drone and perform a transition.
+
+**Expected behavior**
+The thrust reference should be smooth during transition.
+
+**Log Files and Screenshots**
+
+![bokeh_plot (6)](https://user-images.githubusercontent.com/11491719/97275750-9ad6c880-1836-11eb-9a59-ae861984b5b8.png)
+
+https://logs.px4.io/plot_app?log=1e0b41e7-79d0-4d75-be15-27168f4274cc
+
+![bokeh_plot (5)](https://user-images.githubusercontent.com/11491719/97275673-82ff4480-1836-11eb-8d75-1d0fb814896b.png)
+
+https://review.px4.io/plot_app?log=6ce3fbeb-33d0-44db-8232-f3f9dd0f87b2
+
+**Additional context**
+@xdwgood reported that setting MPC_USE_HTE to 0, i.e. disabling the hover throttle estimator, seems to solve the issue. It's still to be confirmed but I'm still creating this issue to keep track of the problem as it should be fixed entirely.
+
+@sfuhrer @RomanBapst  FYI</td>
+						<td>closed</td>
+					</tr>
+					<tr>
+						<td>Increase uavcan main stack size</td>
+						<td>https://github.com/PX4/PX4-Autopilot/pull/15864</td>
+						<td>**Describe problem solved by this pull request**
+I observed hard faults when running `uavcan params list`. A stackcheck build showed that the `uavcan` task overflowed its stack.
+
+**Describe your solution**
+I increased the stack size for the `uavcan` command
+
+**Describe possible alternatives**
+None
+
+**Test data / coverage**
+Increasing stack size shouldn't cause any issues, but for what it's worth I have flown with this commit
+https://review.px4.io/plot_app?log=d0f658d7-60ab-40ae-b4e2-a32aae84d942
+</td>
+						<td>closed</td>
+					</tr>
+					<tr>
+						<td>hovergames disarm in air</td>
+						<td>https://github.com/PX4/PX4-Autopilot/issues/15810</td>
+						<td>
+https://review.px4.io/plot_app?log=37ee74be-7c86-41b9-b172-115dcd91cd5b
+https://www.youtube.com/watch?v=6e8kV0kW_Gk
+
+![Screenshot from 2020-09-24 11-12-02](https://user-images.githubusercontent.com/84712/94164261-d0168200-fe56-11ea-9e45-b9f9e6f2eb65.png)
+
+https://github.com/PX4/Firmware/pull/13992#issuecomment-698317062
+
+@igalloway </td>
+						<td>closed</td>
+					</tr>
+					<tr>
+						<td>USB connection is only accessible if connected in a window of few seconds</td>
+						<td>https://github.com/PX4/PX4-Autopilot/issues/15667</td>
+						<td>**Describe the bug**
+
+If we do not connect the USB to a consumer right after the bootloader, once the RGB LED starts breathing blue (in a window of few seconds), the Pixhawk is inaccessible, no message can be received or sent anymore, but the TTY ACM driver is still up and running, thinking it can communicate.
+
+I could replicate the exact same behavior going one level down, using `libusb1.0` instead of using the kernel `usb-cdc-acm` driver but the exact same behavior happened. This seems to indicate that the last burst would come from the Pixhawk's buffer and not the tty driver buffer. As the log shows below, if nobody subscribes to the data in `/dev/ttyACM0`, the USB connection is not initialized.
+
+**To Reproduce**
+Steps to reproduce the behavior:
+1. Power the Pixhawk with the USB
+2. Wait for the LED to be blue breathing
+3. Wait an additional 10 seconds
+4. Try to connect Mavros, QGc or `cat /dev/ttyACM0`
+5. When connecting, few messages are received
+6. The connection hangs: No message can be sent or received
+
+Steps to reproduce the behavior after successful connection:
+1. Power the Pixhawk with the USB
+2. Wait for the LED to be blue breathing
+3. ~Wait an additional 10 seconds~
+4. Try to connect Mavros, QGc or `cat /dev/ttyACM0`
+5. The connection is successful and can be used for any time you want
+6. Disconnect (stop the node)
+7. Wait 10 seconds
+8. Try to reconnect with the same method
+9. When connecting, few messages are received
+10. The connection hangs: No message can be sent or received
+
+**Expected behavior**
+
+Steps to reproduce the behavior after successful connection:
+1. Power the Pixhawk with the USB
+2. Wait for the LED to be blue breathing
+3. You can wait any time you want before connecting
+4. Try to connect Mavros, QGc or `cat /dev/ttyACM0`
+5. The connection is successful and can be used for any time you want
+
+**Log Files and Screenshots**
+
+`sudo apt install vusb-analyzer usbmon`
+
+Following a USB log file showing the problem. The Pixhawk in this log is DEV 1018. To view it, download it, rename it to remove the `.txt` and open it with vusb-analyzer:
+
+[usbmon.mon.txt](https://github.com/PX4/Firmware/files/5160810/usbmon.mon.txt)
+
+```bash
+mv usbmon.mon.txt usbmon.mon # .mon files are not supported on Github
+vusb-analyzer usbmon.mon
+```
+
+*History of the log:*
+* `0.00s`: Start the log
+* `6.00s`: Connect Pixhawk
+* `12.50s`: Pixhawk left the Bootloader (CDC driver advertised)
+* `13.50s`: Mavlink node started on `/dev/ttyACM0` (showing normal behavior)
+* `21.25s`: Mavlink node manually stopped
+* `37.70s`: Mavlink node started on `/dev/ttyACM0` (showing a stuck behavior)
+    * The messages **do contain data**
+
+Normal start:
+![image](https://user-images.githubusercontent.com/6976744/91954802-998b9280-ed02-11ea-9220-a5228873eb45.png)
+
+Failing start:
+![image](https://user-images.githubusercontent.com/6976744/91954851-ac05cc00-ed02-11ea-973e-404da6cb89f4.png)
+
+Example log https://review.px4.io/plot_app?log=85f3ab21-074b-4a19-9baa-820d606824c2
+
+**To reproduce the log:**
+
+```bash
+sudo su
+modprobe usbmon
+cat /sys/kernel/debug/usb/usbmon/1u > usbmon.mon
+```
+
+**Drone:**
+- Pixhawk 1 (original 3DR)
+- Firmware: px4_fmuv2_default 1.11.0, also tested (same error) on 1.9.0
+</td>
+						<td>closed</td>
+					</tr>
+					<tr>
+						<td>Possible attitude estimation bug</td>
+						<td>https://github.com/PX4/PX4-Autopilot/issues/15612</td>
+						<td>**Describe the bug**
+[Flight 1](https://review.px4.io/plot_app?log=70d80c6c-46f4-4d45-a710-bcc0ed0cae1c)
+After ~30s of full manual indoor flight (~5m height above floor), the estimated attitude began to drift significantly in the roll angle (even in pitch, but not so much), even though the pose desired by the pilot was the hover state. The pilot tried to compensate by tilting the drone in the opposite direction, however, he reached the limit position of the roll stick on the RC and the roll still continued to drift. The high velocity led to a rough crash into a wooden bench. There was no RC signal loss and we checked that the RC had no trims and subtrims in effect.
+
+This was the first time we experienced this behavior after ~4 years working with PX4 firmware.
+
+[Flight 2](https://review.px4.io/plot_app?log=5dc3d4bb-5c16-4ec6-b7ad-17f2456e4f3b)
+The second incident we had was the next day on the same location with different hardware, but the same symptoms. After ~30s of manual flight in altitude mode (~5m height above floor) the UAV started tilting uncontrollably and then crashed into a wall. Again no RC signal losses, no trims and subtrims. We were even flying with this platform the same day in the morning for ~10 minutes without any issues [(OK Flight)](https://review.px4.io/plot_app?log=e0c02122-4335-4ce3-ab3d-598a38e98c7f).
+
+Please find attached logs and description of the hardware in the following sections. My colleague will also upload a video which compares the PX4 estimated attitude with the correctly estimated attitude obtained from a custom attitude estimator run on the recorded IMU flight data.
+
+What is the cause of this behavior? Could there be a bug in the attitude estimator that only manifests in some highly specific conditions? Is there some problem apparent from the logs that we are missing?
+
+Please ask for any relevant additional information that could help solving the issue. Until we resolve this issue we cannot fly indoor in this setup, because it is too unreliable and dangerous.
+
+**To Reproduce**
+We tried to reproduce the behavior in lower height above floor with another drone with the same setup as in the first flight without success. 
+
+**Log Files and Screenshots**
+[Flight 1](https://review.px4.io/plot_app?log=70d80c6c-46f4-4d45-a710-bcc0ed0cae1c)
+[Flight 2](https://review.px4.io/plot_app?log=5dc3d4bb-5c16-4ec6-b7ad-17f2456e4f3b)
+[OK Flight](https://review.px4.io/plot_app?log=e0c02122-4335-4ce3-ab3d-598a38e98c7f)
+
+**Drone (please complete the following information):**
+
+***Flight 1***
+- Frame: Quadrotor Tarot T650
+- Total mass: 3.5 kg
+- Motors: Tarot 4114-11 320KV
+- ESCs: BL-Heli 32 50A
+- FCU: Pixhawk 4 (PX4 FW v1.10.1)
+   - attached to the frame by screws
+- RC: Hi-Tec Flash 8
+- RC receiver: Optima SL
+
+***Flight 2***
+- Frame: Custom coaxial octarotor
+- Total mass: 5.5 kg
+- Motors: T-Motor MT2814-11 710KV
+- ESCs: FOXY Multi 30A Opto V2015
+- FCU: Pixhawk 2.1 Cube (PX4 FW v1.10.1)
+   - attached to the frame by foam dampeners
+- RC: Hi-Tec Aurora 9
+- RC receiver: Optima SL
+
+**Additional context**
+- Magnetometer fusion was turned off for both flights
+- All components were used previously in many flights
+- Calibration of accelerometers, gyroscopes and level horizon was done the day before the first incident</td>
+						<td>closed</td>
+					</tr>
+					<tr>
+						<td>Failed to transition from TAKEOFF to MISSION</td>
+						<td>https://github.com/PX4/PX4-Autopilot/issues/15471</td>
+						<td>While testing PR #15083 the vehicle was commanded to execute a mission, took off but failed to transition from Takeoff to Mission.
+
+A workaround was to pause the mission and then continue the mission.
+
+Vehicle used: Holybro S500 with Pixhawk 4 and Drotek GPS.
+
+Mission with RTL
+In 4/5 missions the vehicle tookoff and didn't went to the next waypoint, I think is related to the issue of the auto-takeoff, land flights. I needed to pause the mission or switch different flight mode and then click continue mission.
+https://review.px4.io/plot_app?log=d2dc82d7-0024-4562-b8dc-2edf5e4bbf22
+https://review.px4.io/plot_app?log=b1762b52-0ce7-4231-8f66-004e334ccdf2
+https://review.px4.io/plot_app?log=7d6db655-f099-4d24-9de9-878498a6cace <- log with no issue
+https://review.px4.io/plot_app?log=dbb8da1c-8f3f-4e56-91a3-ee9ed80b6585
+https://review.px4.io/plot_app?log=936188a2-8917-4c4e-9820-a519e949d8ba
+
+						</td>
+						<td>closed</td>
+					</tr>
+					<tr>
+						<td>Drone Crash: Motors shutdown on fly</td>
+						<td>https://github.com/PX4/PX4-Autopilot/issues/15347</td>
+						<td>During some flight test we had an hexarotor crash. All the motors stopped suddenly and the machine crashed on the ground.
+We right now can't explain such a behavior.
+Here is the flight log: https://review.px4.io/plot_app?log=f177f3be-1ffc-4040-a86d-5831aefa752c
+Can you guys spot any SW related issue?
+The firmware is based on bcce75e691657e7da06ff1bf88fc878eb026c92b. It's an April master commit.
+The modification we made to the firmware are minors and do not related to navigation. I do not think they can explain such a think.</td>
+						<td>closed</td>
+					</tr>
+					<tr>
+						<td>Poor Fixed wing runway takeoff tracking </td>
+						<td>https://github.com/PX4/PX4-Autopilot/issues/14851</td>
+						<td>Fixed wing runway takeoff tracking is very poor on various firmwares and aircraft types that i've been testing and had others test.
+
+I've compiled some notes and logs on this and it was even brought up (in a different context) in https://github.com/PX4/Firmware/issues/11785 but the more we look at it, the more this is a true issue and from a practical standpoint is making using autonomous takeoff not feasible given the high risk.
+
+Let me also preface this by saying a many things have been tested and changed and a makeshift solution was come up with as well but that doesn't solve the problem. Wheel Rate settings have been altered to various extreme and subdued amounts (as seen in the logs). This has reduced some things present like sudden full wheel deflection upon mission start but it never fixes the trajectory of the takeoff and that it does not generally point or aim to the takeoff waypoint but goes off course many time more than it does not.
+
+Multiple different aircraft and aircraft types were used, even though the mixer is the same, that is only because we have varying sizes and weights of test aircraft and even foam ones where the setup, weight and geometry on the nose gear and linkages is completely different (which is good to rule out a single hardware type or build as the culprit).
+
+I often have seen the wheel channel output (main 5) swing up and down 500us over neutral, essentially max on both extremes and even when that isnt having the same type of behavior exists at +/200. The scaling factor probably helps in these cases by reducing movement (so long as you are still on course enough or at least not going to crash on takeoff) but the thing to remember is this entire process is only 3-8 seconds long before you're airborne so it's easy to not see or overlook.
+
+The hacked solution? Limit min/max pwm value of the wheel servo either in PX4 or at the servo level to limit how much steering can physically occur. This is not a solution but gets things airborne by quasi limiting the ability to go off course. Not a true solution.
+
+Logs:
+
+https://review.px4.io/plot_app?log=efad594a-afe0-451a-a1dd-a6130e49a03b
+This log has an sudden full right wheel right as the mission is initiated.
+
+
+							<img width="815" alt="Screen Shot 2020-05-06 at 4 09 07 PM" src="https://user-images.githubusercontent.com/31726584/81230497-38072180-8fb7-11ea-9942-27b46c07db99.png">
+
+https://review.px4.io/plot_app?log=25ce0df8-15d6-4591-8578-83042921cffe - This is similar but not as severe as the previous log (still has huge wheel swings though).
+
+https://review.px4.io/plot_app?log=53e17faa-3f52-4a3f-8e7e-b2d8c8ede219 - This log is interesting that the aircraft was purposely moved to the corner of the runway because the previous flights had it going to the right during the takeoff portion and it sill went much too hard right and then off the runway.
+
+
+								<img width="825" alt="Screen Shot 2020-05-06 at 4 35 30 PM" src="https://user-images.githubusercontent.com/31726584/81230726-a1873000-8fb7-11ea-846f-1522b97372cc.png">
+
+
+https://review.px4.io/plot_app?log=ee6bef2c-167c-4d43-ae96-8ac2144df2e1 - This takes off successfully because of the large area, thats the only reason. There is video of the takeoff if need be.
+
+https://review.px4.io/plot_app?log=bc807a89-07c1-44ac-836b-7d9e09ee7d0a - This log actually doenst look as bad except if you zoom out and look at the first waypoint, it's still off to the left.
+
+
+https://review.px4.io/plot_app?log=668ab1af-c9f8-4c30-b6fb-f26b998c85b4 - This log takes off successfully but zoom into the wheel output. It's successful because the area used was large and it has the time and room to recover and/or just get airborne.
+
+https://review.px4.io/plot_app?log=bac42025-4d70-45d3-ae4c-39c781328b01 This was a taxi test but still shows rapid oscillation (so throttle is only at 30%).
+ 
+
+									<img width="811" alt="Screen Shot 2020-05-06 at 4 48 22 PM" src="https://user-images.githubusercontent.com/31726584/81231820-6c7bdd00-8fb9-11ea-84cd-6ed33cc17f38.png">
+
+https://review.px4.io/plot_app?log=cbb044ac-211d-49f9-86b9-3d0702427cbe - Same place, post taxi test (same wheel rate settings) and less rapid oscillation but still really bad, had to abort since about to go off runway.
+
+
+										<img width="813" alt="Screen Shot 2020-05-06 at 5 01 44 PM" src="https://user-images.githubusercontent.com/31726584/81233100-b5cd2c00-8fbb-11ea-9a40-f8fe560be6eb.png">
+
+https://review.px4.io/plot_app?log=08ff0f58-b264-49b0-a694-58eab9b76ffd
+
+
+https://review.px4.io/plot_app?log=bd117170-1dca-42a8-a309-58b537296419
+
+Below are a collection more, some are very extreme, some less. Multiple combinations of the wheel rate parameters were altered but this still represents multiple settings where oscillation occurred severely.
+
+https://review.px4.io/plot_app?log=7758631a-a5ae-4ead-97b4-f496cfa2a3c8
+https://review.px4.io/plot_app?log=10e31631-552f-4585-b1f4-bc73da6ac094
+https://review.px4.io/plot_app?log=75486b4a-385b-47a6-a851-c54ae909c077
+https://review.px4.io/plot_app?log=d6d43381-14ac-4ba7-9cf2-f9b68d0ed7b7
+https://review.px4.io/plot_app?log=b0be9c38-62e5-4cee-9f2e-9c40b603c143
+https://review.px4.io/plot_app?log=c1dcab38-8c6b-42a8-91a2-4e89ab1ec26a
+https://review.px4.io/plot_app?log=6130efca-f4dd-4a81-b648-f1ed5424f585
+ https://review.px4.io/plot_app?log=e7e3027f-8cf0-4ef8-ace5-640383a2775b
+https://review.px4.io/plot_app?log=6130efca-f4dd-4a81-b648-f1ed5424f585
+https://review.px4.io/plot_app?log=7c70673a-5d26-4996-9de1-35e1b1633d3c
+
+@dagar - as discussed
+
+
+
+
+										</td>
+										<td>closed</td>
+									</tr>
+									<tr>
+										<td>Misfire at catapult launch (custom FW version 1.7.2)</td>
+										<td>https://github.com/PX4/PX4-Autopilot/issues/14838</td>
+										<td>**Describe the bug**
+From 55 test flights we had 2x misfire at catapult launch. It looks like PWM was not send on ESC and motor didn't start. I need suggestion what to check in ulg files.
+
+**To Reproduce**
+We do not know how to reproduce.
+
+**Expected behavior**
+Motor should always start at catapult launch
+
+**Log Files and Screenshots**
+ULG files
+[misfire2x.zip](https://github.com/PX4/Firmware/files/4583095/misfire2x.zip)
+or
+https://review.px4.io/plot_app?log=530849b9-21cb-4097-9acb-cf0d311b97bf
+https://review.px4.io/plot_app?log=b78cdaff-b13b-43a9-8d57-0168c43b90e7
+
+**Drone (please complete the following information):**
+https://www.unmannedtechshop.co.uk/product/unmanned-pixhawk-autopilot-kit/
+pixhawk 2 fmuv2
+Stack: PX4 Pro
+Vehicle: Fixed wing
+FW Version: 1.7.2 custom build
+</td>
+										<td>closed</td>
+									</tr>
+									<tr>
+										<td>mc_pos_control: fix takeoff ramp gets amended by feed-forward</td>
+										<td>https://github.com/PX4/PX4-Autopilot/pull/14821</td>
+										<td>**Describe problem solved by this pull request**
+I found an issue with the takeoff ramp when real world testing https://github.com/PX4/Firmware/pull/14749 on the Holybro QAV250. But I found the issue is independent of that pr.
+
+The thrust doesn't ramp nicely anymore like it was designed but depending on stick input can go up and down unexpectedly during the ramp up. This can lead to early land detection if the thrust goes up high enough and then back down because the ramp is not yet high enough.
+
+The problem is: Because the takeoff ramp is a vertical velocity limit ramp for the nice user experience but the acceleration feed-forward can add on top of the output and depending on trajectory generation result in unwanted thrust changes during the ramp.
+
+**Describe your solution**
+I suppress the vertical acceleration feed-forward during the ramp.
+
+**Test data / coverage**
+It's reproducable in SITL with the correct configuration:
+`MPC_TKO_RAMP_T` 5, `MPC_JERK_MAX` 20
+1. Switch to position mode
+2. Arm
+3. Fully rise the throttle stick
+
+Before: https://review.px4.io/plot_app?log=ba57f51e-abaf-4990-ad34-64b3cef56d11
+![image](https://user-images.githubusercontent.com/4668506/80960930-27657880-8e0a-11ea-854d-0b59169d5c9a.png)
+After: https://review.px4.io/plot_app?log=532b6cdd-5101-4007-82b6-529b1491e85b
+![image](https://user-images.githubusercontent.com/4668506/80960966-3a784880-8e0a-11ea-8318-54b2023b1d2d.png)
+
+</td>
+										<td>closed</td>
+									</tr>
+									<tr>
+										<td>Unstable GPS data while using the 2nd telemetry on TELEM2 port - v1.11.0-beta1</td>
+										<td>https://github.com/PX4/PX4-Autopilot/issues/14659</td><td>**Describe the bug**
+Hi, I found very strange GPS behavior after uploaded "v1.11.0-beta1" to pixhawk 4. Firstly, I configured MAV_1_CONFIG = TELEM2 (My UAV has been flown using this config. before since firmware v1.8.2, v1.9.2 and v1.10.2 and I got no error). Then, I investigated using"mavlink inspector" in QGC and take a look at GPS_RAW_INT. 
+
+GPS signal seems unstable, the fluctuation ranges from 0 to 5 Hz. It should be a constant value or nearly constant (compared with an older firmware, I have already tested before).
+
+Finally, the result is the flight mode could not be changed from ALTITUDE to POSITION, No Green GPS LED light visible. I managed the test as follows 
+
+**To Reproduce / Test Case**
+Case 1: v1.11.0-beta1 --> OK
+MAV_1_CONFIG = Disabled
+https://review.px4.io/plot_app?log=9764baca-ec06-40aa-b1ba-79719d0b75fc
+
+Case 2: v1.11.0-beta1 --> Error / ubx msg warning
+MAV_1_CONFIG = TELEM2
+https://review.px4.io/plot_app?log=a670c429-592e-4e52-a200-b811bd45f14d
+
+Case 3: v1.11.0-beta1 --> OK
+MAV_1_CONFIG = TELEM/SERIAL4 
+https://review.px4.io/plot_app?log=98b8c1ec-d492-48b5-823a-870af29e5686
+
+Case 4:  v1.11.0-beta1 --> Error / ubx msg warning
+MAV_2_CONFIG =  TELEM2  
+
+Case 5: v1.11.0-beta1 --> OK
+MAV_2_CONFIG =  TELEM/SERIAL4 
+
+Case 6: v1.11.0-beta1 --> Error / ubx msg warning
+MAV_1_CONFIG = TELEM/SERIAL4 
+MAV_2_CONFIG =  TELEM2  
+
+Case 7: v1.10.1 --> OK (compare to Case 2 v1.11.0-beta1. It is not the same result even config. is the same)
+MAV_1_CONFIG = TELEM2
+https://review.px4.io/plot_app?log=29bea816-da9d-4cd4-b042-c0fdb14e489d
+
+The error is the same whether telemetry is available on that port or not, indoor or outdoor if I configure MAV_X_CONFIG to TELEM2. According to the flight log of Case 2, you will see the strange GPS behavior at "GPS Uncertainty and GPS Noise & Jamming". In every test case, Telemetry works fine.
+
+However, GPS works fine if I upload the older firmware "v1.10.1" (v1.8.2 / v1.9.2 is the same) Is it firmware bug ? or Did I miss anything?
+
+**Drone (please complete the following information):**
+- Describe the type of drone: Tiltrotor using E-flite Convergence airframe
+- Hardware: Pixhawk4 + GPS pixhawk 4 + Holybro telemetry
+
+</td>
+									<td>closed</td>
+								</tr>
+								<tr>
+									<td>bad altitude hold v1.11.0-beta1 vs v1.10.0</td>
+									<td>https://github.com/PX4/PX4-Autopilot/issues/14640</td>
+									<td>User reported worse altitude hold after upgrading from PX4 stable v1.10.0 to the current v1.11 beta.
+
+### v1.10.1
+ - https://review.px4.io/plot_app?log=664c4e7a-9bb1-423f-935f-5abbf69f6170
+ - (**new 2020-04-22**) https://review.px4.io/plot_app?log=d26da1f6-24a8-43e3-aadc-0bf5a634d86f
+
+### master (slightly before v1.11.0-beta1 with old IMU drivers)
+ - https://review.px4.io/plot_app?log=ba162746-c163-4b68-9259-251410e4d053
+
+### v1.11.0-beta1
+ - (windy): https://review.px4.io/plot_app?log=c27b7984-de30-4f85-ac27-4b6083007d02
+ - (windy): https://review.px4.io/plot_app?log=672dcf31-f717-4136-830e-e20fd5e80038
+ - https://review.px4.io/plot_app?log=047d7d42-f16f-4dfd-a9a2-33613455eeeb
+ - (**new 2020-04-22**): https://review.px4.io/plot_app?log=e625d55b-613c-43f8-bad7-ce666000b264
+ - (**new 2020-04-22**): EKF2_HGT_MODE=GPS https://review.px4.io/plot_app?log=7f123d8b-0c5d-4188-88b8-df5752340d4d
+ - (**new 2020-04-22**): EKF2_BARO_NOISE baro noise tuning: https://review.px4.io/plot_app?log=d178c0b5-b863-4038-bead-9026c0a0a598
+
+
+### Local Position Z (v1.10.0 vs v1.11.0-beta1)
+![Screenshot from 2020-04-10 11-16-18](https://user-images.githubusercontent.com/84712/79001600-bb4e6800-7b1c-11ea-90c8-4d77405c2f78.png)
+
+### Velocity Z (v1.10.0 vs v1.11.0-beta1)
+![Screenshot from 2020-04-10 11-18-58](https://user-images.githubusercontent.com/84712/79001772-1d0ed200-7b1d-11ea-92f9-e6196679637f.png)
+</td>
+									<td>closed</td>
+								</tr>
+								<tr>
+									<td>Battery emergency RTL initiate climb command, even if drone already landing</td>
+									<td>https://github.com/PX4/PX4-Autopilot/issues/14479</td>
+									<td>**Describe the bug**
+I found on a flight that I have came to nearly empty battery that there is something that look to me like bug in the emergency and critical battery logic.
+I started to land in nearly empty battery, but then the emergency battery logic intiated, and instead of continue landing, it started to RTL (climbing), I took control to RC and landed.
+it seems that COM_LOW_BAT_ACT doesn't respect the current flight mode, and if the drone has already started to land, it can re-initiate action, that might be climbing.
+
+**To Reproduce**
+ * in order to reproduce easily in simulator I have changed the next parameters:
+BAT_LOW_THR = 30%
+BAT_EMERGEN_THR  = 20%
+BAT_CRIT_THR = 10%
+COM_LOW_BAT_ACT = 3 (Return mode at critically low level, Land mode at current position if reaching dangerously low levels)
+RTL_RETURN_ALT = 100m
+SIM_BAT_MIN_PCT = 0%
+
+ * take-off
+ * fly to another location
+ * climb to 20m
+ * wait that the battery will get to ~30% and start land
+ * the RTL will be initiated, starting with climbing (and here the bug)
+
+**Expected behavior**
+in case of already started landing, don't initiate RTL. and don't re-initiate landing
+
+**Log Files and Screenshots**
+https://review.px4.io/plot_app?log=c50117f1-3f81-4141-af5f-5e905ea239e5
+![image](https://user-images.githubusercontent.com/29940676/77550563-ecdaf880-6eb9-11ea-8598-910b5f52d097.png)
+
+
+**Drone (please complete the following information):**
+- simulation (master 25/3/2020)
+</td>
+									<td>closed</td>
+								</tr>
+								<tr>
+									<td>Fixed-wing position controller not ouputting attitude setpoints if GPS switched off in altitude mode</td>
+									<td>https://github.com/PX4/PX4-Autopilot/issues/14243</td>
+									<td>**Describe the bug**
+Fixed-wing altitude mode doesn't work without GPS data because it seems to run only with a [valid global position](https://github.com/PX4/Firmware/blob/18754225c93ee18c76c227cc66f687835e4a0046/src/modules/fw_pos_control_l1/FixedwingPositionControl.cpp#L1481). 
+It is though currently possible to switch to altitude flight mode (at least for a VTOL) without a GPS connected.
+
+**To Reproduce**
+In sitl, fly a VTOL in fixed-wing mode or a plane, and disable GPS fusing in air by setting the EKF2_AID_MASK to 0. Switch to stabilized and back to altitude mode.
+
+**Expected behavior**
+I expect that altitude flight mode works without issues after a GPS loss (at least with valid baro data).
+Till we have that we should disable the ability to switch to altitude flight mode if you don't have a valid global position (resp. for VTOL disable transition to FW mode in altitude mode).
+
+**Log Files and Screenshots**
+This is a sitl flight where I disabled GPS fusing in air (by setting the EKF2_AID_MASK to 0). When then switching out and in again into altitude flight mode, the attidue sp and control signals are frozen. 
+https://review.px4.io/plot_app?log=3cfedd2d-14e0-4f6f-8afd-781823577aa6
+
+Add screenshots to help explain your problem.
+
+**Additional context**
+I became aware of this problem recently while flying a VTOL without GPS sensor.
+
+Should we maybe split TECS and L1 into separate modules @RomanBapst @dagar ? Just as an effort to disentangle this all a bit.
+</td>
+									<td>closed</td>
+								</tr>
+								<tr>
+									<td>Issue with landing PixRacer FMUV4_K66, FMUv5</td>
+									<td>https://github.com/PX4/PX4-Autopilot/issues/13956</td>
+									<td>**Describe the bug**
+When flying the vehicle in Mission mode and trigger RTL, upon landing the vehicle does not descend vertically but drifts away with the wind. I had to take command of the vehicle in position mode and landed the vehicle manually. This is an issue that we have seen constantly, with the PixRacer and K66, FMUv5. **We are seeing this issue when the wind is 6 m/s and over.** 
+
+**To Reproduce**
+Steps to reproduce the behavior:
+1. Drone switched on 
+2. Uploaded mission to the vehicle
+3. Took off in Mission Mode 
+4. All commands were sent form QGC (Armed and takeoff)
+5. Once all waypoint completed vehicle switched to RTL
+6. When the vehicle was landing, it did not descend vertically, drifted away with the wind and landed the vehicle manually
+
+**Expected behavior**
+The vehicle should land and disarm.
+
+**Log Files and Screenshots**
+This is the latest PR tested with the PixRacer and issue persisted, Reference [#13678](https://github.com/PX4/Firmware/pull/13678)
+Logs: https://review.px4.io/plot_app?log=67a2120c-a473-43a3-a556-6a542f62f7b1
+
+Issue noticed on Reference  [#13701](https://github.com/PX4/Firmware/pull/13701
+), wind 10.2 m/s, PixRacer.
+
+Issue noticed on Reference [#13745](https://github.com/PX4/Firmware/pull/13745#event-2883456760), wind 10.2 m/s, PixRacer V4.
+Log: https://review.px4.io/plot_app?log=719ab88b-d993-47c8-a9ca-eaf429d4577e
+
+Issue noticed on Reference [#13613](https://github.com/PX4/Firmware/pull/13613#event-2837043850), 10.2 m / s, PixRacer V4.
+Logs: https://review.px4.io/plot_app?log=b0f1f872-fc9e-41ee-89e3-4e146862efc7
+Log: https://review.px4.io/plot_app?log=a8a1391c-06c0-475e-943a-48bea5da2e24
+
+Issue noticed on Reference [#13065](https://github.com/PX4/Firmware/pull/13065), NXP_FMUK66_V3, 
+Logs: https://review.px4.io/plot_app?log=792db7ac-8738-4bdd-8a03-aa6d88b371b3
+
+
+**Drone (please complete the following information):**
+**PixRacer**
+Frame: DJI F450
+Flight Controller: PixRacer 
+GPS: Readytosky M8N GPS Module Built-in Compass
+Motors: T Motor 2212-920kv
+Propellers: DJI Phantom Built-in Nut Upgrade Propellers - MR PH 9.4x5 
+Receiver: FrSky D4R-II 2.4G 4CH ACCST Telemetry Receiver
+Telemetry:Holibro Telemetry, 100mW Telemetry Radio V3 915MHz
+ESC: Hobbywing XRotor 20A APAC Brushless ESC
+Battery: 3S 5200mAh(Hobbyking)
+
+**NXP:**
+Vehicle description:  RDDRONE-FMUK66
+Flight Controller: FMUK66 
+Frame: ReadytoSky LJI X4 500
+Motors: ReadytoSky RS2212 920 kV CW & CCW  
+Propellers: LJI 9450 self-locking propellers
+GPS: Holybro Pixhawk 4 GPS
+ESC: ReadytoSky 2-6S 40 A OPTO ESCs
+Battery: 3S 5200mAh 
+
+**Additional context**
+We will test when windy on Master and Stable and see if the issue persists. </td>
+									<td>closed</td>
+								</tr>
+								<tr>
+									<td>Pixhawk 3 Pro v4_ failed connection to the RC</td>
+									<td>https://github.com/PX4/PX4-Autopilot/issues/13892</td>
+									<td>**Describe the bug**
+The vehicle did not connect to RC, it would not let the user bind the RC nor calibrate, the same issue was noticed on Master it seems to be working on Stable firmware. This is a brand new flight controller shipped from Drotek, the previous flight controller had bad vibrations and the mag data looked bad. We suspect the issue was something electrical and the flight controller was replaced. Now we are having a failed connection to the RC.  
+
+**To Reproduce**
+Steps to reproduce the behavior:
+Binding Procedure:
+
+RC Steps:
+1- Turn on RC
+2- Activate Biding mode (RC will make beeping sounds)
+
+Vehicle Steps:
+"With the vehicle turned on"
+1- Unplug the receptor
+2- Press Binding button and keep pressed
+3- Plug in receptor (without letting the binding button go) and make sure both red and green light of the receptor are turned on.
+RC Step
+1- Disable binding mode
+Vehicle Step:
+1- Confirm binding by having the receptor with a solid green light on (algo confirm by moving flight modes switches.)
+
+**Log Files and Screenshots**
+PR13837: https://review.px4.io/plot_app?log=51c918b7-763c-41c8-b7c8-4a162be0fd3d
+Master: https://review.px4.io/plot_app?log=e9b18b85-685e-4f30-8931-9bfdafbc159a
+![81888019_596289817600621_1788273439723749376_n](https://user-images.githubusercontent.com/39415493/72025384-ce575080-322c-11ea-88b9-ac3ce3e1d483.jpg)
+![81572634_469390607331633_522361898293788672_n](https://user-images.githubusercontent.com/39415493/72025419-ea5af200-322c-11ea-8ee1-09cbf3c265b8.png)
+![83031236_1268661076637838_3741699096512036864_n](https://user-images.githubusercontent.com/39415493/72025421-ec24b580-322c-11ea-8d17-60e68567841b.png)
+
+**Drone Information**
+- Pixhawk 3 Pro v4
+- DJI F450 Frame
+- CUAV GPS
+
+**Additional context**
+ Below is the last working logs on Master for the Pixhawk Pro. The PixRacer seems to be working fine.
+Flight card 1
+Log: https://review.px4.io/plot_app?log=35d59e70-c3f1-4bfc-a76a-ec8de20261c3
+Flight card 2
+Log: https://review.px4.io/plot_app?log=0ebede1a-549f-4638-af23-7dcfe365e371
+Flight card 3
+Log: https://review.px4.io/plot_app?log=5bbb5e95-acd1-4fd1-a78d-5f2e028d8fb7
+Flight card 4
+Log: https://review.px4.io/plot_app?log=81e3f2bd-bcca-4263-9b00-20f9beea0d6a
+
+@dagar </td>
+									<td>closed</td>
+								</tr>
+								<tr>
+									<td>Fix and add warnings for RTL with invalid landing</td>
+									<td>https://github.com/PX4/PX4-Autopilot/pull/13873</td>
+									<td>**Describe problem solved by this pull request**
+Currently RTL skips this segment of code which displays an error if the vehicle is unable to use the mission.:
+`} else {
+				// Otherwise use regular RTL.
+				mavlink_log_critical(_navigator->get_mavlink_log_pub(), "RTL: unable to use mission landing");
+			}`
+We have also ran into issues with users missing this initial message. This has lead to users being confused as to why the fixedwing vehicle is not landing. 
+
+**Describe your solution**
+This gets rid of the dead code introduced previously, and fixes the bug with the warning message not being displayed. It also adds a message that displays every 30 seconds warning the user that the vehicle cannot use the mission landing. 
+
+**Describe possible alternatives**
+The best alternative would be to reject invalid missions and keep the current valid mission on the vehicle. This would get rid of an invalid landing being uploaded to the vehicle.  
+
+**Test data / coverage**
+This was tested in SITL
+https://review.px4.io/plot_app?log=cfa987ce-62c4-4a50-b018-ca3456d892c3
+
+A version of this has also been in use on our Fixedwing vehicles since August. 
+</td>
+									<td>closed</td>
+								</tr>
+								<tr>
+									<td>Altitude Fluctuation in Constant-Altitude Missions</td>
+									<td>https://github.com/PX4/PX4-Autopilot/issues/13793</td>
+									<td>**Describe the bug**
+When flying a basic mission with constant-altitude waypoints, the drone’s altitude erroneously fluctuates. Our use-case requires a much more reliable altitude for precision deployment of sensors. Let me know if you can/can't reproduce this issue.
+
+![altitudegrpah2](https://user-images.githubusercontent.com/33331023/71501357-f2736480-281e-11ea-87d5-d1f1c158680b.PNG)
+
+Notice how the estimated altitude doesn't follow the setpoint altitude in mission mode (purple region), but it follows exactly in position mode (green region). This shows that the instruments and sensors are capable of producing altitude-accurate flight.
+
+I also posted this issue here: [https://discuss.px4.io/t/altitude-fluctuation-in-missions/14416](url)
+
+**To Reproduce**
+1. Use Pixhawk1 or Pixhawk Cube with 1.8.2, 1.9.2, or 1.10 firmware
+2. Upload mission detailed below
+3. Take off and start mission
+4. See drone fluctuate 1-2 meters from setpoint.
+
+Mission:
+
+Mission Start - 0m
+Takeoff - 8m rel to home
+Waypoint - 8m rel to home, 5sec hold
+Waypoint - 8m rel to home, 5sec hold
+Waypoint - 8m rel to home
+Waypoint - 8m rel to home
+Waypoint - 8m rel to home
+Waypoint - 8m rel to home
+
+**Expected behavior**
+I expect the drone's altitude to follow the setpoint altitude in mission mode with the same accuracy as position mode.
+
+**Log Files Analysis**
+[https://review.px4.io/plot_app?log=624517a3-9159-415c-8974-4fc790206f6f](url)
+More log files for different missions are available upon request. They have all resulted in the same issue--despite using different setpoint altitudes and types of waypoints.
+
+**Drone**
+This problem was reproduced on two drones; a Flamewheel 450 and a custom drone that is much larger--about 1 meter span between opposite motors. We tried multiple configurations for each drone consisting of Pixhawk 1, Pixhawk Cube, v1.8.2 PX4 and v1.9.2 PX4. For each Pixhawk, we used the standard recommended GPS. Both drones were adequately powered.
+</td>
+									<td>closed</td>
+								</tr>
+								<tr>
+									<td>Durandal Mission transfer fail</td>
+									<td>https://github.com/PX4/PX4-Autopilot/issues/13732</td>
+									<td>**Describe the bug**
+We were able to flash master on the latest QGC 3.5.6 on the Durandal flight controller. The problem is that we are getting a Mission transfer fail error message when loading the Mission on QGC. We tried with USB and Mission failed, USB and battery connected and Mission failed, it seems to work via Telemetry. We formatted the SD card and we encountered the same issue. 
+
+**To Reproduce**
+Steps to reproduce the behavior:
+1. Make sure you have the latest QGC 3.5.6
+2. Flash firmware Master branch
+3. Uploaded mission to the vehicle
+4. Error message "Mission transfer failed" see picture below.
+![78786969_1548876298601624_6122367445408677888_n (1)](https://user-images.githubusercontent.com/39415493/70669964-b63fe180-1c2c-11ea-98e9-66581acb430c.png)
+
+**Log Files**
+**Modes Tested**
+Position Mode: Good.
+Altitude Mode: Good.
+Stabilized Mode: Good.
+Mission Plan Mode (Automated): Good.RTL (Return To Land): Good.
+https://review.px4.io/plot_app?log=0a193cd7-9b3b-483f-86de-aea71489b32b
+https://review.px4.io/plot_app?log=62b6b784-7e3a-41c2-a47b-b27791a90635
+
+**Drone Information**
+Firmware: v1.10.0 (beta) (d6ffdc09)
+Flight Controller: Durandal(Holybro)
+GPS: Holybro GPS
+Frame: F450
+Telemetry: Holybro 915Mhz
+
+**Additional Note:**
+When we removed the SD card and uploaded the logs 2 flight logs were not saved on the SD card. The logs are shown on the SD but no information was registered. The total flights completed were 4 and only 2 flight logs registered the data. </td>
+									<td>closed</td>
+								</tr>
+								<tr>
+									<td>Bad system behavior when airspeed data disapears</td>
+									<td>https://github.com/PX4/PX4-Autopilot/issues/13697</td>
+									<td>There is some bad system behavior we've observed in legacy firmware (between v1.8-v1.9) related to airspeed data disappearing, for example if the I2C bus flakes out or if power is lost to the airspeed sensor.
+
+I submit this for review against the new airspeed selector work @sfuhrer and others are contributing in hopes the new airspeed features will robustly handle these difference cases.
+
+If airspeed data suddenly disappears there are several bad behaviors:
+
+1. The system seems to keep sending the last known airspeed reading down the MAVlink pipe to the ground station (might need to be verified).  It should instead stop sending airspeed data if no new data is available.
+
+2. There are no warnings to the user that airspeed data has gone missing. There should be some warning inidcation if airspeed data is expected but disappeared.  There should also be an indication if it returns.  (note: similar data disappeared, data returned indications should be extended to all sensor types).
+
+3. On a failed takeoff, if the autopilot stops receiving airspeed data, the LandDetector may think the vehicle is still flying because the last reported airspeed still seems to be piping into the system. The motor may still run at full throttle! Ideally airpseed would stop updating and "zero" or "null" would be reported and the system would understand that it should not be using airspeed as part of the LandDetector.
+
+4. If airspeed disappears during flight there is no indication that it disappeared. TECS will silently switch to non-airspeed mode and not tell the user and by-passes the airspeed failsafe functionality. There should be warning indications and the airspeed failsafe functionality should be followed.
+
+Here are some flight logs showing the last example of airspeed data disappearing during the middle of a flight:
+https://review.px4.io/plot_app?log=d378dac5-1061-444d-ba8d-ee911c6315cf
+https://review.px4.io/plot_app?log=35be23c2-6bdf-4caa-9075-f9805b6d2035
+https://review.px4.io/plot_app?log=5ffc7018-9793-4b88-89a3-8066988b1e54
+
+FYI @sfuhrer </td>
+									<td>closed</td>
+								</tr>
+								<tr>
+									<td>Error message "unable to read from microSD" when flying a mission with "jump to item"</td>
+									<td>https://github.com/PX4/PX4-Autopilot/issues/13592</td>
+									<td>**Describe the bug**
+When flying a mission on a VTOL with a "jump to item" in it, it does what it is supposed to do (go back to selected item and then continue the mission from there on again), but it gives the following error message every time it reaches the "jump to item" waypoint:
+![image](https://user-images.githubusercontent.com/26798987/69558813-2d2c7780-0fa9-11ea-8d0d-f8b3859a2831.png)
+
+https://review.px4.io/plot_app?log=e3b60ca9-d232-46d3-99f4-65220f2360b2
+
+
+</td>
+									<td>closed</td>
+								</tr>
+								<tr>
+									<td>EKF gps hgt timeout - reset to baro</td>
+									<td>https://github.com/PX4/PX4-Autopilot/issues/13508</td>
+									<td>**Describe the bug**
+EKF gps hgt timeout - reset to baro problem.
+It basically says GPS data is lagged because _gps_hgt_intermittent flag is on.
+
+_gps_hgt_intermittent = !((_time_last_imu - gps_init.time_us) < 2 * GPS_MAX_INTERVAL);
+
+However, it seems very difficult to meet this condition unless otherwise GPS has unstable connection. But it's not. It seems some timing issue.
+
+**To Reproduce**
+Not exactly reproducible
+
+**Expected behavior**
+
+**Log Files and Screenshots**
+https://review.px4.io/plot_app?log=d8997f75-e796-4a42-9b90-ea5c06a3d54d
+
+**Drone (please complete the following information):**
+- FMUv5.
+
+									</td>
+									<td>closed</td>
+								</tr>
+								<tr>
+									<td>Unexpected Freefall druing Loiter Mode</td>
+									<td>https://github.com/PX4/PX4-Autopilot/issues/13479</td>
+									<td>I have flight three times with my vtol plane two days ago. In the last flight,  during loiter mode at 280meters, the plane start to descent its altitude. I commanded RTL at 25meters and it return back to home but It still losing altitude during rtl mode. RTL altitude set to 40m but the plane did not climbout to 40m during rtl mode. I switch to manual at about 10 meters and landed the plane. Loiter mode does not appear in flight log records. I think that fw control module stops to work in air. The plane did not try to reach cruise airspeed during this period. Actually, it did not try to correct anything. 
+
+After landing, I was able to run lifter motors, servos and pusher motor. The plane was able to take off and landing normally after landing. There was no hardware problem. You can see easily, there is long dropout on flightlog at all plots. You can watch the flight from "Open 3D View", the plane was flying backwards bcause of dropouts on log file.
+
+Flight log: https://review.px4.io/plot_app?log=ecc40545-1384-4185-828e-c14322655122</td>
+									<td>closed</td>
+								</tr>
+								<tr>
+									<td>v1.10.0-rc quadcopter doesn't take off in HITL/jMAVsim </td>
+									<td>https://github.com/PX4/PX4-Autopilot/issues/13471</td>
+									<td>**Describe the bug**
+Set up HITL simulation with jMAVsim on Ubuntu 18.04,  Pixhawk 4 with v1.10.0-rc, locally built px4_fmu-v5-multicopter. 
+
+**To Reproduce**
+Steps to reproduce the behavior:
+1. Follow the recipe from [px4 website](https://dev.px4.io/v1.9.0/en/simulation/hitl.html#jmavsimgazebo-hitl-environment)
+2. Using Manual/Stabilized mode, arm vehicle and apply throttle
+3. Vehicle does not take off
+4. Mavlink shell (`listener` command) shows actuator_outputs_1 with *valid* values and actuator_outputs_0 with 0 values
+
+**Expected behavior**
+SERVO_OUTPUT_RAW or HIL_ACTUATOR_CONTROLS should follow actuator_outputs_1 and the vehicle should take off in simulation
+
+**Log Files and Screenshots**
+[Flight Review Link](https://review.px4.io/plot_app?log=8890b998-3b24-4a96-af5a-da4c10910bff)
+
+Add screenshots to help explain your problem.
+
+**Drone:**
+- Pixhawk4 running in HITL Quad Mode
+- Photo of the IMU / autopilot setup if possible.
+![IMG_8020](https://user-images.githubusercontent.com/11541631/68861820-46d0e380-06ba-11ea-98e2-76585b3bb031.JPG)
+
+
+
+</td>
+									<td>closed</td>
+								</tr>
+								<tr>
+									<td>Violent jerk when switching from manual to position mode</td>
+									<td>https://github.com/PX4/PX4-Autopilot/issues/13415</td>
+									<td>**Firmware**: 1.9.2 (with #13312 and #13325)
+
+**Describe the bug**
+I'm seeing huge pitch/roll setpoints when switching from manual to position mode . It seems like it's the velocity controller, but I don't really understand how the velocity controller ends up demanding such large effort of the attitude controller. I've detuned the P gain on the velocity controller and am still seeing a violent jerk when switching from manual to position. Here's a log with 3 mode switch, the first one being the most violent.
+
+
+**To Reproduce**
+Steps to reproduce the behavior:
+1. Switch from `manual` to `position` mode. The more velocity you have before the switch, the more violent the jerk.
+
+**Log Files and Screenshots**
+https://review.px4.io/plot_app?log=4fa7056e-d1bc-437f-829d-0b45e3087276
+![Selection_038](https://user-images.githubusercontent.com/37091262/68419559-afb6d980-0157-11ea-96b3-72665d0f29f1.png)
+![Selection_041](https://user-images.githubusercontent.com/37091262/68419888-5307ee80-0158-11ea-93d5-1dddd621be10.png)
+
+
+The velocity setpoints are not changing dramatically, so the attitude effort should not be there.
+![Selection_039](https://user-images.githubusercontent.com/37091262/68419561-b1809d00-0157-11ea-9cd0-991be8fbca65.png)
+
+@bresch @mhkabir @TSC21 
+
+Related to #12389
+</td>
+									<td>closed</td>
+								</tr>
+								<tr>
+									<td>FW: vehicle stays forever in takeoff mode if airspeed fails</td>
+									<td>https://github.com/PX4/PX4-Autopilot/issues/13413</td>
+									<td>If the airspeed is invalid (eg NAN) during FW mission takeoff (runway takeoff), the take off state is never exited. 
+
+![image](https://user-images.githubusercontent.com/26798987/68403081-ad1aab00-017c-11ea-8368-b965edd717d8.png)
+
+https://review.px4.io/plot_app?log=ce5a3aee-13a2-4ee6-bd07-8e1f9b7a497a
+
+This will btw also not be fixed with https://github.com/PX4/Firmware/pull/12887 and the default values (fallback to ground-windspeed would need to be enabled), and is part of the reason that the SITL CI fails for this PR till now).
+
+FYI @dagar @RomanBapst 
+
+</td>
+									<td>closed</td>
+								</tr>
+								<tr>
+									<td>Hard-fault produced when GPS is driver is started in-flight</td>
+									<td>https://github.com/PX4/PX4-Autopilot/issues/13352</td>
+									<td>**Describe the bug**
+This may not be a regular use-case, but while testing to reproduce #13350, I had a bad crash, which turns out was a hard-fault.
+
+**Steps taken**
+Steps to reproduce the behavior:
+1. Drone with optical flow (pmw3901), GPS actively used. Commanded via MAVLink
+2. Stopped the GPS driver
+3. Take-off
+4. `gps start -b 115200`
+5. BOOM
+
+**Elaboration**
+I mention that the vehicle was commanded via MAVLink because I did the exact same test again immediately afterwards, with the only difference that I was using an RC and it did not hard-fault. I was scared to attempt to reproduce... Joysticks don't let you map a kill switch!
+
+**Log Files and Screenshots**
+[Log](https://review.px4.io/plot_app?log=b3af87ef-bc79-4795-be5e-6c99e36557a9)
+[Hard-fault file](https://drive.google.com/file/d/1IxdO0bjZCKV5n7AkUgmThaM9rMiLva93/view?usp=sharing)
+[ELF file](https://drive.google.com/file/d/1P0VStSh6af39KoXZ0IefE6NJOosAE7jF/view?usp=sharing)</td>
+									<td>closed</td>
+								</tr>
+								<tr>
+									<td>Commander mode offboard triggers PX4 freeze</td>
+									<td>https://github.com/PX4/PX4-Autopilot/issues/13309</td>
+									<td>**Describe the bug**
+Using px4_sitl_default together with gazebo and sending set_actuator_control_target via pymavlink successfully establishes a mavlink connection and actuator commands are received on the px4 stack and uorb topic offboard_control_mode is published. When using the system console and sending `commander mode offboard` the stack freezes. No uorb topics are published and no mavlink messages are received (gazebo plugin correspondingly outputs `[Err] [gazebo_mavlink_interface.cpp:1155] poll timeout` in the mavlink poll function). The pxh system console remains responsive but commands to any module (e.g. commander, uorb) have no effect and hence indicating the system wide freeze. No error message from PX4 is shown and gdb debugger catches no signals.
+
+**To Reproduce**
+- run `px4_sitl_default gazebo`
+- send mavlink messages via pymavlink `c.mav.set_actuator_control_target_send(0, 0, 0, 0, controls)`
+- switch to offboard mode using `commander mode offboard`
+
+**Expected behavior**
+Px4 was expected to switch `vehicle_control_mode` into offboard mode.
+
+**Log Files and Screenshots**
+- https://review.px4.io/plot_app?log=86db944d-af82-456a-bb6c-79e8e5b223dd
+
+**Additional context**
+- PX4 firmware (v1.9.2)
+- mavlink (release/kinetic/mavlink/2019.10.10-1)
+- mavros (0.33.0)
+- Approaches so far:
+  - PX4_INFO() print outputs showed that commander reaches publishing in run() loop
+  - gdb info variables and inspecting last variables gave no further insights
+
+The freeze presumably happens after the system console arguments are parsed and published in the commander run loop. It could also be that the crash happens earlier and all modules get stuck at the file descriptor polling. Maybe a problem from global variables causing a race condition with the main commander thread? Maybe I am missing something but it does not seem that variable access is coordinated when parsing the mode argument.
+
+Any advice on how to approach or debug this problem are very much appreciated!</td>
+									<td>closed</td>
+								</tr>
+								<tr>
+									<td>Land detector edge case in descend mode</td>
+									<td>https://github.com/PX4/PX4-Autopilot/issues/13231</td>
+									<td>**Describe the bug**
+The land detector seems to detect ground contact in Descend mode (RC land failsafe without GPS).
+
+1. `vertical_movement` to be `false`: https://github.com/PX4/Firmware/blob/95dc522b99688a08402ac6462ad28f5dfd338eda/src/modules/land_detector/MulticopterLandDetector.cpp#L154
+2. `hit_ground` to be `true`: https://github.com/PX4/Firmware/blob/95dc522b99688a08402ac6462ad28f5dfd338eda/src/modules/land_detector/MulticopterLandDetector.cpp#L165
+
+This happens because the z controller only reacts slowly to the new setpoint so the z velocity down is much less than the z velocity setpoint here:
+https://github.com/PX4/Firmware/blob/95dc522b99688a08402ac6462ad28f5dfd338eda/src/modules/land_detector/MulticopterLandDetector.cpp#L151-L154
+
+One observation of the descend case is that the velocity setpoint jumps to the land speed instead of gradually reaching it like in Land (with GPS) mode.
+
+![bokeh_plot(1)](https://user-images.githubusercontent.com/1419688/67103273-14b88880-f1c5-11e9-932a-827e357f7cc7.png)
+
+
+**To Reproduce**
+This is hard to reproduce in SITL because the drone seems to follow the setpoint quicker.
+
+**Expected behavior**
+It should not detect ground contact until actually landed.
+
+**Log Files and Screenshots**
+
+This happened in a failsafe descend test:
+https://review.px4.io/plot_app?log=3104d449-dd29-473f-9055-354984ff8afa
+
+This does **not** happen in normal landing:
+https://review.px4.io/plot_app?log=2ea6423f-b232-45c9-8c40-32e775118359
+
+More info in https://github.com/PX4/Firmware/pull/13143#issuecomment-543682487.
+
+FYI @bresch @MaEtUgR 
+</td>
+									<td>closed</td>
+								</tr>
+								<tr>
+									<td>Offboard position setpoints with loiter type mask makes Fixed wing vehicle fly away</td>
+									<td>https://github.com/PX4/PX4-Autopilot/issues/13180</td>
+									<td>**Describe the bug**
+Offboard position setpoints with loiter type masks result in a fly away of a fixed wing vehicle. The roll and pitch setpoints are set to zero and continues to fly to the last direction where offboard mode was triggered. The offboard position setpoints fly as expected without the loiter type mask.
+
+![Screenshot from 2019-10-14 12-05-00](https://user-images.githubusercontent.com/5248102/66743792-fe37c780-ee7a-11e9-8d67-0b0f06dd44d1.png)
+
+**To Reproduce**
+Steps to reproduce the behavior:
+1. Take off FW vehicle in SITL
+2. Send `SET_POSITION_LOCAL_NED` setpoint with `type_mask=0x3000` ([see](https://github.com/PX4/Firmware/blob/master/src/modules/mavlink/mavlink_receiver.cpp#L774)
+3. Swich mode to offboard mode
+
+
+**Expected behavior**
+The FW vehicle circles around the loiter setpoint
+
+**Log Files and Screenshots**
+The [log](https://review.px4.io/plot_app?log=8617fe45-3269-4098-9165-e94b176d74a4) shows the offboard setpoint resulting in a fly away. A local position setpoint of [0.0, 0.0, 20.0] was being streemed with`type_mask=0x3000`
+
+**Additional context**
+Currently flying offboard position setpoints are passed as a reference position for the L1 controller, which results the vehicle turning around and traversing the setpoint as can be seen [here](https://review.px4.io/plot_app?log=209a8f30-a2aa-45f1-85b0-6755170b88a2). Supporting circling the waypoints may be useful for various robotic applications using fixed wing.
+</td>
+									<td>closed</td>
+								</tr>
+								<tr>
+									<td>QGC _altitude issues_CUAV Nano</td>
+									<td>https://github.com/PX4/PX4-Autopilot/issues/13148</td>
+									<td>**Describe the bug**
+We have noticed the altitude issues on the CUAV Nano this issue was noted on QGC altitude reading. (and relative altitude) not being displayed correctly. 
+
+**To Reproduce**
+Steps to reproduce the behavior:
+1. Drone switched on
+2. Uploaded mission
+3. Takeoff, Position Mode 
+4. Switch from Position mode to Mission mode 
+4. See altitude reading on QGC
+
+**Log Files and Screenshots**
+Log Nano V5:   
+https://review.px4.io/plot_app?log=e3d7bc0a-891d-4ecf-8ebd-01afb7630ab7
+![nano V5](https://user-images.githubusercontent.com/39415493/66510657-4d03ec80-ea8a-11e9-8544-4bf23e4d8059.jpg)
+![nano V5](https://user-images.githubusercontent.com/39415493/66510679-5725eb00-ea8a-11e9-84a6-876ba6643988.jpg)
+
+**Drone (please complete the following information):**
+FC- CUAV Nano 
+Frame: F450 frame
+GPS- NEO V2
+![f450_cuav5_nano_complete](https://user-images.githubusercontent.com/39415493/66511077-1e3a4600-ea8b-11e9-90dd-80041808b8cc.jpg)
+
+
+**Additional context**
+The vehicle flight performance is well but the altitude is off by approximately 10 to 13 meters.@dagar what could be the issue? </td>
+									<td>closed</td>
+								</tr>
+								<tr>
+									<td>CUAV V5+_Accel inconsistent</td>
+									<td>https://github.com/PX4/PX4-Autopilot/issues/13083</td>
+									<td>**Describe the bug**
+We are getting this constant error message of Accel inconsistent error with the CUAV V5+. We did all the calibrations, then try to arm again and again mark Accel inconsistent. We did a complete reset in the flight controller did the calibrations and the same issue. 
+
+**Log Files and Screenshots**
+
+										<img width="960" alt="CUAV+ Accels inconsistent" src="https://user-images.githubusercontent.com/39415493/66089260-64dfeb80-e533-11e9-93a4-3610550da5ba.png">
+
+Log: 
+https://review.px4.io/plot_app?log=37067a71-b746-4f44-8013-8c4fe57b3bfa
+
+Last working flight log: 
+https://review.px4.io/plot_app?log=66332487-04b5-47f5-b1a3-a241e23a4dd7  
+
+**Drone (please complete the following information):**
+- FC- CUAV V5+
+- Frame- DJI f450
+- GPS- NEO V2
+![CUAV close pic](https://user-images.githubusercontent.com/39415493/66089507-7970b380-e534-11e9-8a08-7fc280ed0082.jpg)
+
+**Additional context**
+Today we tried the Master branch but I had already tried it in Stable & a PR and still the same error, I also changed the GPS from the working unit Nano CUAV but it remains the same.
+@dagar what could be the issue? 
+										</td>
+										<td>closed</td>
+									</tr>
+									<tr>
+										<td>VTOL transition no rate sp for 1 second</td>
+										<td>https://github.com/PX4/PX4-Autopilot/issues/13030</td>
+										<td>**Describe the bug**
+No rate sp are being published in the first second of a front transition.
+
+![image](https://user-images.githubusercontent.com/26798987/65669005-13bb8d80-e043-11e9-80c2-4e8607d602b4.png)
+
+log file (todays master in sitl): 
+https://review.px4.io/plot_app?log=7e8f18ac-0800-4c4b-a947-7773ed1ddc41
+
+
+**To Reproduce**
+Do a VTOL front transition in sitl, all control modes (stabilized, alt, pos) seem to be affected.
+
+
+**Additional context**
+Noticed it only because of accidentally triggered front transition, while also giving some roll input before. Then the rate_sp froze for 1s at a large value, almost resulting in a flip of the VTOL.
+![image](https://user-images.githubusercontent.com/26798987/65669305-9a706a80-e043-11e9-882a-93d21eba2ddf.png)
+
+@dagar @RomanBapst  FYI</td>
+										<td>closed</td>
+									</tr>
+									<tr>
+										<td>CM8JL65 switches uORB instance mid-air</td>
+										<td>https://github.com/PX4/PX4-Autopilot/issues/12987</td>
+										<td>**Describe the bug**
+I've seen a bug where the distance sensor CM8JL65 switches the uORB topic it is publishing on, mid-air. This doesn't seem to bother EKF2 much, but it still doesn't sound like a great idea.
+
+This was seen when testing a rebased version of https://github.com/PX4/Firmware/pull/12950, but I don't think the issue is related to the PR.
+
+Would be interesting to know if anybody has seen similar behavior with other sensors, or if this is more likely a bug in the CM8JL65 driver.
+
+**Screenshots**
+![image](https://user-images.githubusercontent.com/14265408/65228612-1100eb80-dacb-11e9-93e1-cefa6e4880f9.png)
+
+**Logs**
+[Log file](https://review.px4.io/plot_app?log=c5c192d0-ae47-4bbc-a8de-2c887bddaf87)
+</td>
+										<td>closed</td>
+									</tr>
+									<tr>
+										<td>VTOL: no control in FW after transition in ALT control</td>
+										<td>https://github.com/PX4/PX4-Autopilot/issues/12910</td>
+										<td>reproducable in sitl: take off in alt, switch to FW. Not possible to change flight direction.
+
+sitl log:
+https://review.px4.io/plot_app?log=a60bffd8-f43f-4ca1-b59e-18d7dbe46bc9
+
+flight log:
+https://review.px4.io/plot_app?log=a14d1d71-bb8c-4438-a0bb-6ae8daed4190</td>
+										<td>closed</td>
+									</tr>
+									<tr>
+										<td>[WIP] VTOL attitude control: fix pusher support in hover</td>
+										<td>https://github.com/PX4/PX4-Autopilot/pull/12899</td>
+										<td>Pusher assist in position control is broken currently. Reason for it is that _pusher_throttle  is only updated every time https://github.com/PX4/Firmware/blob/69475a172bf743fb4b735d5e5595d8a23f2dba66/src/modules/vtol_att_control/vtol_att_control_main.cpp#L420 is executed, and otherwise _pusher_throttle=0 is set. And update_mc_state is only updated when mc_virtual_attitude_sp is updated.
+
+Also reproducable in SITL (unsteady actuator_controls(3), see below)
+
+I made a quick fix for that by just filling the actuator outputs if the MC or FW virtual attitude sp have been updated. 
+
+
+**Test data / coverage**
+SITL: before fix:
+![image](https://user-images.githubusercontent.com/26798987/64269866-efd0c480-cf3a-11e9-951d-5bf900f8cada.png)
+After the fix:
+![image](https://user-images.githubusercontent.com/26798987/64269946-0bd46600-cf3b-11e9-9cf1-4e9a3d7397ed.png)
+
+
+Bench Test:
+
+https://review.px4.io/plot_app?log=afef455a-a52a-4055-9013-4ff2e4e5eecb
+
+
+</td>
+										<td>closed</td>
+									</tr>
+									<tr>
+										<td>Pixhawk Cube_calibration issue on Master</td>
+										<td>https://github.com/PX4/PX4-Autopilot/issues/12692</td>
+										<td>**Describe the bug**
+When setting up the vehicle for a flight, on arming the vehicle I get a "Compass not found" message, see image below:
+![image](https://user-images.githubusercontent.com/39415493/62976692-0a979980-bdd2-11e9-9e1e-65a1f90f1168.png)
+This issue is on Master e25db016 & PR Pull[12650](https://github.com/PX4/Firmware/pull/12650#event-2540347567), tried on Stable version and was able to fly. v1.9.2 (10690587).
+**To Reproduce**
+Steps to reproduce the behavior:
+1. Power on the Drone
+2. Uploaded mission 
+3. Arm vehicle and Takeoff
+4. Error, "Preflight Fail: COmpass #2 uncalibrated"
+5. Calibrate vehicle 
+6. Error message Gyro 1 no matching uORB devid
+7. Unable to calibrate the vehicle on Master
+![image](https://user-images.githubusercontent.com/39415493/62978246-ad054c00-bdd5-11e9-8470-26f7e1acde02.png)
+
+
+**Log Files**
+Compass not found and Calibration issue log on Master:
+https://review.px4.io/plot_app?log=13cc9db5-4a03-41ff-a9e2-b80013d3e104
+
+Stable  v1.9.2 (10690587) log:
+https://logs.px4.io/plot_app?log=71a782cc-7979-4ff1-a6e8-f3d8f4757f55
+
+PR 12650 log issue:
+https://review.px4.io/plot_app?log=18094d44-f808-4b67-b7d6-8ef0df7f4f05
+ 
+**Drone **
+Frame- DJI F450
+Flight Controller: Pixhawk 2(The Cube)
+
+@dagar we tried calibrating the vehicle and get an Error message Gyro 1 no matching uORB devid. On Stable version, we were able to arm, calibrate and fly the vehicle with no issues.
+
+</td>
+										<td>closed</td>
+									</tr>
+									<tr>
+										<td>nxp_fmuk66-v3 disable px4flow temporarily</td>
+										<td>https://github.com/PX4/PX4-Autopilot/pull/12632</td>
+										<td>As a precaution while we debug the underlying issue.
+
+@davids5 @igalloway 
+
+
+https://review.px4.io/plot_app?log=0bcf24d7-b989-4283-a11d-c7443d9fd10d
+
+Very high cpu usage in the I2C WQ from the px4flow.</td>
+										<td>closed</td>
+									</tr>
+									<tr>
+										<td>Logger stopped completely during flight?</td>
+										<td>https://github.com/PX4/PX4-Autopilot/issues/12565</td>
+										<td>**Describe the bug**
+We did 4 flight tests on Tuesday, the first two logged fine, the last two stopped logging during fight. The other parts of the system were working as usual so I didn't even notice anything until reading the logs and finding out most of it is missing.
+I am logging everything at the highest rates so I am not surprised by the frequent dropouts, but why did it just go off completely? 
+
+Now I am trying to increase the buffer size by multiplying it in line 283. [https://github.com/PX4/Firmware/blob/36534d5bab3d6a73f146e671df1b8f40772174b7/src/modules/logger/logger.cpp#L283](http://url)
+Multiplying it by 4 makes the dropouts less frequent but sometimes the buffer still saturates. If I try to multiply it by 5 the logger won't start at all. Why there is a limit? 
+The stack size seems unaffected but I try to increase it to 5000 anyway, making no difference.
+
+**Expected behavior**
+I would expect the logging to resume after the buffer clears up, not just to stop completely.
+Also maybe the way to increase the buffer correctly is not completely clear to me.
+
+**Log Files and Screenshots**
+Here the logging stopped even before takeoff. There is 10+ minutes of flight missing.
+https://review.px4.io/plot_app?log=0fd05bfa-c092-49f5-8cf6-c89c3d950f51
+
+This is the last flight, there should be another 5+ minutes tracked.
+https://review.px4.io/plot_app?log=fdb9b50f-cc70-48d0-92d1-04215f50c64c
+
+**System**
+Pixhawk 4
+
+</td>
+										<td>closed</td>
+									</tr>
+									<tr>
+										<td>Fixedwing position controller not able follow position setpoints in offboard mode</td>
+										<td>https://github.com/PX4/PX4-Autopilot/issues/12517</td>
+										<td>**Describe the bug**
+When streaming position setpoints to the fixed wing vehicle, it can enter offboard mode as the setpoint is sreamed. However, rather than following the setpoints (usually defined in local coordinates) it simply flies straight. 
+
+This seems to be because the fixed wing position controller blindly reads from the setpoints in global coordinates from the position_setpoint_triplets.
+
+https://github.com/PX4/Firmware/blob/master/src/modules/fw_pos_control_l1/FixedwingPositionControl.cpp#L854-L855
+
+**To Reproduce**
+1. Run SITL and start mission while streaming position_setpoints through mavros with setpoint_raw messages to takeoff and loiter
+2. After takeoff, switch vehicle to offboard mode
+
+**Expected behavior**
+When given a position setpoint, the desired behavior is to use it as a reference for the L1 position controller.
+
+**Log Files and Screenshots**
+https://review.px4.io/plot_app?log=f6204199-f876-4253-8d12-cb454c1e816b
+
+As can be seen in the picture below, once the vehicle is in offboard mode, the vehicle simply flies straight.
+![Screenshot from 2019-07-19 00-59-14](https://user-images.githubusercontent.com/5248102/61497647-84e62100-a9c0-11e9-845e-d8893c43ba88.png)
+
+**Additional context**
+Attitude setpoints for offboard mode in fixed wing is currently working. However, to use this a l1 like path tracking controller needs to be implemented on the companion side to make it usable. Being able to stream position setpoints to a fixed wing drone would greatly simplify the interface for robotic applications in fixed wing</td>
+										<td>closed</td>
+									</tr>
+									<tr>
+										<td>thermal calibration issues</td>
+										<td>https://github.com/PX4/PX4-Autopilot/issues/12412</td>
+										<td>I am trying to perform a [offboard thermal calibration on my pixhawk 3] with v1.9.0 firmware (https://docs.px4.io/en/advanced_config/sensor_thermal_calibration.html).  And I am getting step like response for my bias compensation (see attached figure).  Notice the z acceleration bias is very large.  Looking at the [flight review](https://review.px4.io/plot_app?log=9ef38f6d-629e-43c8-84f3-5af83118771b) it seems that the raw data is fine and has temperature drift, but the estimate rpy angle and rate go crazy.  
+
+Why do I get step like responses for my bias curves? Is this a hardware or software problem?
+ Has anybody got this issues before and if so how can I resolve it? This problem exist and my 3 new pixhawk 3 systems.
+
+[log001.ulg.pdf](https://github.com/PX4/Firmware/files/3357190/log001.ulg.pdf)
+
+thanks
+
+
+
+
+
+</td>
+										<td>closed</td>
+									</tr>
+									<tr>
+										<td>MPC_THR_HOVER gets passed unconstrained to the thrust setpoint in manual mode.</td>
+										<td>https://github.com/PX4/PX4-Autopilot/issues/12338</td>
+										<td>**Describe the bug**
+An incorrect value of MPC_THR_HOVER will get passed unconstrained to the manual thrust setpoint.  In 1.8.2 the manual thrust setpoint was constrained between MPC_THR_MIN and MPC_THR_MAX.  If the user entered a MPC_THR_HOVER of 50 instead of 0.50 a centered stick would result in a thrust setpoint of 50 where the mixer expects values between 0 and 1.0.
+
+**To Reproduce**
+Steps to reproduce the behavior:
+Set MPC_THR_HOVER to a value of 59 (instead of the correct 0.59).  In QGC this is would have to be entered as 5900 but in a startup script as 59.
+
+**Expected behavior**
+The hover thrust setpoint should not be greater than 1.0, or MPC_THR_MAX
+
+**Log Files and Screenshots**
+https://review.px4.io/plot_app?log=4a38b5fc-4684-4b16-9313-16dcda6294cd
+
+![image](https://user-images.githubusercontent.com/6790455/60197003-5aef7380-97f3-11e9-850c-6330f6c9bdd1.png)
+
+
+Yeah, this was a dumb mistake on my part to fat finger the entry, but in 1.8.2 I would have to fat finger two separate parameters.  It's up to you guys if you want to protect against this kind of dumb.
+</td>
+										<td>closed</td>
+									</tr>
+									<tr>
+										<td>RC loss behavior</td>
+										<td>https://github.com/PX4/PX4-Autopilot/issues/12307</td>
+										<td>**Describe the bug**
+Drone lost communication and then descended to ground.
+
+**To Reproduce**
+Steps to reproduce the behavior:
+Fly drone in Position mode and lose communication with it. I don't know how to reproduce this consistently.
+
+**Expected behavior**
+I would expect the drone to continue to do what it was doing before because NAV_RCL_ACT  was set to 0.
+
+**Log Files and Screenshots**
+https://review.px4.io/plot_app?log=d97a8a6f-94a6-42fa-abf0-0dff97ba8102
+
+**Drone:**
+- Teal One
+
+**Additional context**
+PX4 1.9.0</td>
+										<td>closed</td>
+									</tr>
+									<tr>
+										<td>EKF2 not fusing the Rangefinder</td>
+										<td>https://github.com/PX4/PX4-Autopilot/issues/12247</td>
+										<td>**Describe the bug**
+The estimated altitude and the local_position.z seem to ignore the rangefinder data.
+Using the Lidar Lite through PWM,
+Pixhawk 4 fmu_v5,
+stable release 1.9.0,
+quadrotor_x in position control or altitude hold mode.
+
+The distance sensor data show that the sensor outputs correct readings but the altitude estimates seem uninfluenced.
+
+**Log Files and Screenshots**
+https://review.px4.io/plot_app?log=d19babaf-06b4-4074-b14e-af8828fb51c2
+
+Add screenshots to help explain your problem.
+![Screenshot 2019-06-11 at 20 51 47](https://user-images.githubusercontent.com/22155994/59302939-072a4980-8c8d-11e9-9eeb-36fe5cfd2355.png)
+</td>
+										<td>closed</td>
+									</tr>
+									<tr>
+										<td>Compass calibration fail PixRacer V4 on Master </td>
+										<td>https://github.com/PX4/PX4-Autopilot/issues/12193</td>
+										<td>**Describe the bug**
+Uploaded PR [#12120](https://github.com/PX4/Firmware/pull/12120) tried to arm and had an error "compass Inconsistent". Performed the compass calibrations and got error message "Error: failed to get current calibration 2". Uploaded  Master branch ac44584. To replicate the issue performed calibrations and got the same message, "Error: failed to get current calibration 2". Tried on Stable ea48cd4, performed the calibrations and went through successfully. Vehicle armed and had no issues.  
+**To Reproduce**
+Steps to reproduce the behavior:
+1. Upload Master branch or PR
+2. Perform compass calibration
+3. Failed calibrations 
+4. See error
+
+**Expected behavior**
+The expected behavior is for the vehicle to pass the calibrations and able to arm the vehicle.
+**Log Files and Screenshots**
+
+											<img width="960" alt="error" src="https://user-images.githubusercontent.com/39415493/58993834-89090700-87a3-11e9-9d66-fa505e8772a1.png">
+@dagar There seems to be an error when uploading the log on Flight Review. 
+
+												<img width="960" alt="error al cargar log" src="https://user-images.githubusercontent.com/39415493/58994274-cc17aa00-87a4-11e9-961e-060511c72f9a.png">
+
+**Additional** context
+The last working log
+https://review.px4.io/plot_app?log=116ede6d-d632-4836-91a7-fced724c82be-- 
+
+
+												</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>Poor initial climbout performance, fixed wing</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/11907</td>
+												<td>part of a related discussion with @LorenzMeier @RomanBapst @dagar here https://github.com/PX4/Firmware/pull/11883#discussion_r278098852
+
+We sometimes see poor initial climb out performance on our hand-launched fixed wing. Looking at some logs it is not achieving the target pitch angle (15 deg), but the control system isn't trying very hard to get there.
+
+Might there be an integrator issue or is something else going on with airspeed and gain scaling?
+
+![image](https://user-images.githubusercontent.com/12117027/56701401-91f6bb00-66c4-11e9-835e-3dbd02233b24.png)
+
+
+Example logs here:
+https://review.px4.io/plot_app?log=a8b193bc-f3d7-4cab-ae3e-ba0302c1834b
+and
+https://review.px4.io/plot_app?log=09b99ed1-aef6-4eff-8d44-d166307f7132</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>Pixhawk Cube v2 Return to land failure</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/11824</td>
+												<td>**Describe the bug**
+- Modes Tested
+Position Mode: Good.
+Mission Plan Mode (Automated)
+RTL (Return To Land
+
+- Procedure
+Arm and Take off in position mode, after flying for approximately one minute, switched to mission plan mode  behavior,the vehicle took-off and reached the designated altitude (35m) as expected; issue started once it reached the altitude of 35m, UAV began to oscillate and descend at the same time but the descend was not continuous, it had short pauses.
+
+https://review.px4.io/plot_app?log=e9d7b116-487a-45c2-98f9-52d9cec4d88f
+
+**Drone (please complete the following information):**
+- Describe the type of drone.F450 Pixhawk Cube v2
+
+Video:  https://www.youtube.com/watch?v=Sv2jUGdmNBo&feature=youtu.be</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>ECL breaks gazebo when there is a lidar</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/11812</td>
+												<td>After the ECL update of April 4th, if the vehicle model has a lidar the local position drift like crazy when the vehicle is unarmed on ground.  Green line is vehicle local position
+
+![crazy](https://user-images.githubusercontent.com/15078736/55722173-c81a1680-5a05-11e9-851b-23405bd22d2a.png)
+
+
+Log: https://review.px4.io/plot_app?log=f1ff8c5b-d47a-4065-8a6a-1beafacd1b6c
+Reported by @mrivi</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>nxp_fmuk66-v3 rev C issues</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/11767</td>
+												<td>
+
+**Tested on NXP v3.x**
+
+**Modes Tested** 
+_Position Mode:_ Armed and took-off as expected, once in the air the vehicle was oscillating. 
+
+_Mission Plan Mode (Automated):_ Once switched from position to mission vehicle gain altitude but did not start the mission then switched back to position but UAV did not respond and crashed. 
+
+_RTL (Return To Land):_ Untested. 
+
+**Notes** 
+Vehicle took-off in position mode but was oscillating while in the air. 
+The vehicle did not respond to RC commands after switching from mission mode back to position mode.
+
+https://review.px4.io/plot_app?log=d9e76bc4-5c82-42c5-84bf-19c127e78016
+@igalloway @davids5 @dagar </td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>Fixed wing mission and altitude transition fail</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/11759</td>
+												<td>Vehicle Information:
+Airframe: Phantom FPV Flying Wing
+Hardware: | PX4_FMU_V3 (V2)
+Software Version: | v1.9.0 (beta) (25bf4ba7)
+Steps:
+
+1.  Vehicle arms 
+1. Take off is smooth
+
+Notes: Flight as expected, but once the mission plan (automated) is triggered, fixed-wing accelerates towards the ground with the nose facing down.
+
+PR #10179 and Master same issues.
+https://review.px4.io/plot_app?log=d1c75dae-a1fe-4fc6-b6aa-20cb1f979aa8
+Initially, we thought it was the hardware. Last week we did several reboots and inspected the hardware. We tested again today and the same issue persisted.
+
+Video of the issue below:
+https://www.youtube.com/watch?v=CdgrCeFI8A0&feature=youtu.be
+@dagar what could be the issue?
+
+</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>Hard-fault in NuttX?</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/11703</td>
+												<td>**Describe the bug**
+We flew in position control testing some of the collision prevention capabilities (together with the avoidance on the companion), when suddenly the drone fell out of the sky.
+
+**Log Files and Screenshots**
+[Firmware: 2ebb9d](https://github.com/PX4/Firmware/commit/2ebb9d2ab52bce56a74d34d3b36c7130422577c2)
+[Logfile](https://review.px4.io/plot_app?log=a2750cab-5785-4dd2-bc34-c54e8ca32668)
+[.elf file](https://drive.google.com/file/d/12XRtolO2OdMxlqsjAS1kktjLkBmqnFY_/view?usp=sharing)
+
+**Drone :**
+Quad X racer, with a pixracer
+
+My hard-fault debugging skills are severely limited, best I could tell is that it seemed to come from `fs_poll.c`, but I wouldn't trust myself about that. Maybe @bkueng or @julianoes are more qualified to debug this?</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>High CPU load on Pixhawk 4 (fmu-v5)</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/11604</td>
+												<td>When flashing master I noticed very high CPU loads when arming the vehicle. Depending on my parameters, the CPU load can go between 85 and 100%. Also when disarmed the cpu load is way higher than usual.
+
+Log: https://review.px4.io/plot_app?log=6d8f3085-a624-4cbb-8974-5ae992ba51d7
+
+This log is from my bench setup with no external SPI or I2C sensors.
+
+![ph4_cpu_issue](https://user-images.githubusercontent.com/35664507/54019920-c05c1d80-418c-11e9-81ab-d3f122544a9a.png)
+
+FYI @LorenzMeier @dagar @davids5 @bkueng</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>Must reboot Pixhawk Between Missions</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/11588</td>
+												<td>After we land and finish a mission, if we disarm then arm back up or simply don't disarm but re-run the mission, mission mode engages but not take-off occurs (no throttle spin up). Flaps go down (take-off flaps are enabled) but there is no motor-spin up. The only way to fix it is to reboot the plane from QGC.
+
+This is occurring on master but likely not new since it has done this repeatedly (nothing but this) on master from a week or two ago as well.
+
+FMU_v2 with v3 firmware on fixed-wing.
+
+Logs:
+Successful flight:
+https://review.px4.io/plot_app?log=ba1a4634-1c12-4461-9938-097c743a3e6c
+Log right after taxing back:
+https://review.px4.io/plot_app?log=3cca3276-7b5a-4a50-8073-9a4fd1947557
+Quick Disarm then arm and then taxing to try and takeoff (which didnt work:
+https://review.px4.io/plot_app?log=575072f3-09a1-4c50-bbe9-3edcd923b9b6
+After the last log, a reboot of the plane from QGC and the next mission (same exact mission) flew fine.</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>Pixhawk 4 and Pikhawk 4mini v5 not disarming.</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/11569</td>
+												<td>**Description**
+UAV is not disarming manually nor automatically, same issue when using Kill Switch.
+Changed to Stable firmware and disarm functions where working as expected.
+
+**Log Files**
+Pixhawk 4mini v5 _Commmit:_ 0df34af1
+https://review.px4.io/plot_app?log=b69fc363-d90d-49d1-8cf4-ecb6122f3202&fbclid=IwAR2DQunVucBs96HvJiQ9KvGzdutroVqC33kkPLZk8crRz0QyFi97vb1qy2Q
+
+Pikhawk 4 v5 _Commmit:_ 0df34af1
+https://review.px4.io/plot_app?log=e715787a-7f9f-45d4-9947-e5b0e1576773&fbclid=IwAR3dsmfYIADvrCuK_24NColLyb5a2E1UnXGX25eYMjg21_FRJSy3evWkG_4
+
+**Drone**
+- Multicopter.
+- DJI Flame Wheel F450.
+@dagar</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>Issue with Master_vehicle crash</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/11408</td>
+												<td>Today we tested Master v1.9.0 (beta) (7f3b1700) with the Pixracer, Pixhawk 4 mini, Pixhawk 4. Created mission. The vehicle armed good, took off. At 30 meters the vehicle started spinning and came down to the ground. Resulted in a crash. Same behavior for all 3 platforms. 
+
+Steps to reproduce the behavior:
+
+1. Uploaded mission
+1. Drone switched on
+1. Vehicle armed
+1. Took off
+1. Elevated to 30 meters
+1. vehicle started spinning out of control
+1. The vehicle came down and crashed
+
+Pixracer:
+https://review.px4.io/plot_app?log=4f0c2692-5f27-4d83-bfbd-765bf48a989e
+
+Pixhawk 4 Mini:
+https://review.px4.io/plot_app?log=53fa724b-906d-4e93-87fe-5a4f4c2a50b8
+
+Pixhawk 4:
+https://review.px4.io/plot_app?log=69f42b00-6259-4a97-96c1-bd8f06b4d29d
+
+@dagar
+
+</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>[ecl/EKF] EKF stopping navigation in every flight</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/11071</td>
+												<td>Hello,
+
+I am constantly getting this error in my flights: "[ecl/EKF] EKF stopping navigation". I am using a PX4FLOW and a Lidar Lite v3 for range data and I am flying without GPS. I am using fmu-v3 (master) with a small alteration to make the Lidar boot before the PX4FLOW (https://github.com/PX4/Firmware/issues/11009).
+
+From the logs I see that my local position estimates vary wildly at the beginning until I get the error and, after that, the estimating stops (obviously). However, the condition_local_position_valid flag drops to zero even before EKF stops navigation and it never goes back to one. Here is an example of a short test I did this morning:
+
+https://review.px4.io/plot_app?log=95d3f262-f3ef-4dea-9398-91dcce53d245
+
+I was flying outdoors and neither take-off nor landing were exactly smooth. I thought it might be an issue with the PX4FLOW, but I have tried both indoors and outdoors flights on floors with different textures and the quality data I get seems to be good enough. Also, even though the acceleration power spectral density data is not ideal, I get much better values indoors and yet I still get the same error, so I doubt vibration is an issue.
+
+Any ideas?
+
+</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>survey control lost at turn point</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/11041</td>
+												<td>Performing a survey, we saw a weird behaviour at the first turn point. Reaching the turning point, the copter started to tumble violently and loose height. Quickly toggling to altitude and then position to stop the mission didn't stop the behaviour. The machine crashed into the ground tumbling, stayed grounded for a few seconds, and took off again, now hovering stable in position mode.
+
+The tumbling seems to start with a jump of the yaw setpoint. At mission start the machine had a successfully yaw into flight direction however.
+
+The tuning and general reaction tested before the survey in position and altitude mode seemed very stable.
+
+Any hints on possible reasons are very appreciated!
+
+https://review.px4.io/plot_app?log=c7976cfc-d926-4596-ae1a-44c4e216800b</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>Too many false positive "Preflight Fail: HIGH IMU ACCEL BIAS" warning messages</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/10833</td>
+												<td>**Problem:**
+
+We are getting a lot of false positive "Preflight Fail: HIGH IMU ACCEL BIAS" warning messages preventing arming.  This seems to have started in master this past spring and continues in stable 1.8.0.  I believe a lot of other PX4 users are getting these false positive warnings as well.
+
+- (Note: in recent master the text of this warning as changed to "Preflight Fail: High Accelerometer Bias")
+
+This happens to us frequently on known good aircraft that are great fliers and continue to fly great once the fault is cleared. 
+
+We recently noticed the error seems correlated to a vehicle sitting level on the ground for some period of time.  @priseborough made a helpful suggestion to try pitching and rolling the vehicle slowly so that the X and Y accels could spend some time facing down (gravity) and EKF2 could better estimate their bias.  This worked to clear the error!  Here is an example of the error which was then easily cleared by pitching and rolling the vehicle:
+https://review.px4.io/plot_app?log=278fa376-2a02-4027-b465-12507dbc9062
+
+**Possible solution:**
+It has been suggested that using the bias state uncertainty as a factor in the bias level check could help eliminate false positives.  The bias level check in Commander could use the already existing additional information from EKF2 for this.
+
+
+**Further support:**
+
+Anecdotally I know of this exact ACCEL BIAS warning happening to handfuls of other PX4 users, many of whom do not post to Github or Discuss.
+
+There are a large number of github issues and PX4Discuss posts about getting this error.  Probably there are many complicating factors involved with each report, but the fact that there are so many makes me believe there is a systemic issue with the check, or the checks and warnings need to be more specific.
+https://github.com/PX4/Firmware/issues/9241
+https://github.com/PX4/Firmware/issues/9474
+http://discuss.px4.io/t/preflight-fail/7023/10
+http://discuss.px4.io/t/ekf2-problem-z-velocity-estimate-weird-behaviour/8395
+http://discuss.px4.io/t/auto-land-ekf2-test-ratios-flight-controller-reset/8264</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>DANGEROUS: VEHICLE_CMD_DO_REPOSITION broken on master</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/10757</td>
+												<td>Had a Drone fly into a pole and smash into the ground when issuing a VEHICLE_CMD_DO_REPOSITION. I looked at the log and everything looked fine. This is broken on current `master` 294af5daada2fa08da8d9f1c4310779683fe9750
+https://review.px4.io/plot_app?log=cc6bccfc-44a5-4eca-bc2f-7a4be13a0a7a
+![selection_019](https://user-images.githubusercontent.com/37091262/47468014-45ceca80-d7b6-11e8-8a72-808d278e3b66.png)
+
+As you can see we were just adjusting the altitude setpoint and nothing else.
+
+I then tested this in SITL using `make posix_sitl_default gazebo` and issued via QGroundControl a **`goto`** command and saw the vehicle fly to the new location, but then fly super far an a random direction for a while, then returns back to that location, wanders around a bit more, flys off in the opposite direction... then I got bored of watching.
+![selection_020](https://user-images.githubusercontent.com/37091262/47468301-c8a45500-d7b7-11e8-8acc-f1d56e639669.png)
+
+Isn't CI supposed to catch these types of bugs? This is extremely concerning to me.</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>Restore LNDMC_THR_RANGE for faster disarm on land</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/10712</td>
+												<td>As of https://github.com/PX4/Firmware/commits/master/src/modules/land_detector the land detector cannot be configured to transition from `ground_contact` to `maybe_landed` via the now deprecated parameter LNDMC_THR_RANGE. 
+
+It now takes a considerable amount of time to disarm due to throttle down time.
+https://review.px4.io/plot_app?log=43987a80-5752-4f55-89a7-eec60e9298c3
+![selection_011](https://user-images.githubusercontent.com/37091262/47110927-65428200-d20f-11e8-8e41-0ab7008884d7.png)
+![selection_013](https://user-images.githubusercontent.com/37091262/47110989-8a36f500-d20f-11e8-86b4-ef158f78e931.png)
+
+If there is a better way to do this lets discuss it, otherwise I think the parameter should be restored.
+
+**Note:** current implementation sets a hard coded limit
+```
+// 10% of throttle range between min and hover once we entered ground contact
+float sys_min_throttle = _params.minThrottle + (_params.hoverThrottle - _params.minThrottle) * 0.1f;
+```</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>Position setpoint drift during takeoff</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/10679</td>
+												<td>A strange update in the local position setpoint seems to occur during takeoff on a fairly recent branch (few weeks old):
+
+https://review.px4.io/plot_app?log=1d33a68b-c88b-420c-8e8f-4a4382675963
+
+During a mission, The vehicle takes off 4 meters in the air then suddenly changes position. as seen on local position setpoint X/Y. it does resume its takeoff to final altitude.
+
+The position it moved to seems like it is the location where the first home lock occurred. 
+
+![image](https://user-images.githubusercontent.com/14801663/46794991-52c8d400-cd49-11e8-8a9f-fe8fda09f7b9.png)
+
+
+@dagar @RomanBapst @bresch</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>FlightTask: implement MPC_LAND_ALT1/2</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/10659</td>
+												<td>MPC_LAND_ALT1 and MPC_LAND_ALT2 should be used for a final approach speed during landing.
+According to the param spec the vehicle should descend at MPC_Z_VEL_MAX_DN speed and slow down between MPC_LAND_ALT1 and MPC_LAND_ALT2 to MPC_LAND_SPEED.
+
+There is a massive energy consumption benefit in having this
+
+Currently this is not implemented in the FlightTask: https://github.com/PX4/Firmware/blob/bee6a6b8b08d30b36475628e0750edcb6038d798/src/lib/FlightTasks/tasks/AutoMapper/FlightTaskAutoMapper.cpp#L117
+
+The params are used for takeoff which does not seem to be documented behavior: https://github.com/PX4/Firmware/blob/bee6a6b8b08d30b36475628e0750edcb6038d798/src/lib/FlightTasks/tasks/AutoMapper/FlightTaskAutoMapper.cpp#L128
+
+Perhaps implementing it as indicated currently is not a good idea, the altitudes default to 10 and 5m above home and we might be flying over a different altitude.
+
+There are a few options on how this can be implemented safely;
+1. Within a small radius around home / for RTL only
+2. Only when a range finder is installed
+3. If QGC has given the terrain altitude
+4. When enabled by a param
+5. When enabled in the waypoint (explicitly chosen in QGC)
+
+If there are any other ideas on how to do this please share.
+
+Log demonstrating the behavior: https://review.px4.io/plot_app?log=642eae62-6203-4ab3-b372-ef0b58f01e4c
+MPC_LAND_SPEED was 0.7
+MPC_Z_VEL_MAX_DN was 2.5
+
+/cc @dagar @bresch @LorenzMeier</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>Skywalker X8 VTOL unable to recover from gust</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/10639</td>
+												<td>After attempting to climb to 30 m in mission mode a moment is applied due to a gust. This causes the DeltaQuad to bank excessively sending it into a pitch down dive. We attempted to take over manual control but we didn't have enough altitude to recover. 
+
+We flashed our flight controller (Dropix V2.1) with the Master branch (Updated 24th September). We then tested our DeltaQuad in manual mode quickly to ensure everything was working correctly and we set up a simple mission (with a few way-points then a land only in QC mode). It began climbing normally until 24 m when a gust caused the drone to enter a roll. The drone wasn't able to recover from this and caused an adverse roll followed by a nose down attitude until contact with the ground.
+
+Link to the log file: https://review.px4.io/plot_app?log=992ecb6b-8410-4bd6-91e2-e82a7fa5e826
+
+Our drone is a Skywalker X8 with VTOL modules.</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>pixhawk 2.1 voltage issues.</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/10620</td>
+												<td>@dagar @Tony3dr 
+ I had problems with pixhawk 2.1 voltage reading,  I have calibrated the voltage several times  and even with the full battery, activate the fail safe immediately. 
+I already tested with another voltage sensor and reset the parameters and it's still the same.
+
+https://review.px4.io/plot_app?log=8c1f6603-3183-4bf6-87fd-6d527988a276
+https://review.px4.io/plot_app?log=23ce4f5f-e26c-4a00-96e7-5e7cf5c8138c</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>Navigator: Land/RTL quad flys towards home lat/lot/alt</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/10412</td>
+												<td>**Describe the bug**
+Auto modes `land` and `rtl` cause quad to fly directly towards home lat/lon/alt. This is the third time I've seen this in two weeks. I've seen it ~10 times since the introduction of FlightTasks. We are flying ~7 hours a week, so this is a very rare edge case bug. Logging either dies completely or drops out when this happens. I finally have a partial log (2 minute long dropout) of a flight where this happened. 
+
+**To Reproduce**
+1. Takeoff using mode `takeoff`
+2. Fly around in position mode
+3. Issue `land` or `rtl`
+4. This behavior will persist through a land/disarm/arm/takeoff
+
+**Log Files and Screenshots**
+https://review.px4.io/plot_app?log=7955d3de-31c9-4434-b30d-cb31fadefb32
+
+**Additional context**
+I am pretty sure `takeoff` is causing the bug. I am fairly certain `navigator` gets stuck in a loop somewhere, this would explain the logger dropouts due to thread starvation (navigator priority is higher than logger). I am guessing all `auto` modes will cause this, we only use `land` and `rtl`, but both of those modes do the same thing, fly right towards home.</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>Random yawing when RC loss</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/10296</td>
+												<td>**Describe the bug**
+The vehicle loses RC connection and yaws to `home` heading. (We have loiter as our RC loss behavior: NAV_RCL_ACT = 1)
+![selection_001](https://user-images.githubusercontent.com/37091262/44433460-92eab200-a563-11e8-80e5-8b9efc0f3e8f.png)
+
+
+
+**To Reproduce**
+Current `master` just cause an RC loss. 
+
+**Expected behavior**
+Keep the current heading.
+
+**Log Files and Screenshots**
+https://review.px4.io/plot_app?log=d9f20475-0558-45f8-9fc9-56d7389f173c
+
+**Additional context**
+We are hitting a failsafe which we should not be hitting. `FlightTasks::update()` is failing at line `607` in `mc_pos_control_main.cpp`. This triggers `failsafe()`. Note the vehicle does not actually descend....
+
+![selection_002](https://user-images.githubusercontent.com/37091262/44433521-e6f59680-a563-11e8-8ea0-95868c0d5849.png)</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>Navigator: RC loss yaw mission item</td>
+												<td>https://github.com/PX4/PX4-Autopilot/pull/10291</td>
+												<td>Added yaw mission item to `rcloss` state in `navigator`. This fixes the issue mentioned #10262 where the vehicle yaws in a seemingly random direction when RC is lost.
+
+**Test data / coverage**
+Current behavior:
+![selection_001](https://user-images.githubusercontent.com/37091262/44412682-c3f8c180-a526-11e8-9941-05af1f521a36.png)
+Proposed behavior with this PR:
+![selection_002](https://user-images.githubusercontent.com/37091262/44414401-ed1b5100-a52a-11e8-837a-d81ea6349acb.png)
+https://review.px4.io/plot_app?log=2e96b2de-f511-49c0-a51a-a34ba7cabc13</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>Yaw setpoint jumps sharply</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/10230</td>
+												<td>I am having an issue with a very heavy prototype VTOL that I'm building and I am seeing an issue that I am not sure where this behavior could be coming from. As I am hovering, sometimes the bird yaws hard and loses altitude. I think the fact I lose altitude indicates to me that we don't have enough thrust to push through the decent caused by spooling down half of the motors in the yaw.
+
+While I have been digging through the logs, I noticed a point where the yaw setpoint jump sharply at 7:36. I also noticed a baro EKF error and would that case an EKF reset on the mags which could cause a sharp heading change?
+
+I feel like this might just be a poor calibration and tune but I thought I would ping you to see if you have any great ideas.
+
+https://review.px4.io/plot_app?log=ca81fd27-ac49-4d8f-aac2-da9e1532396d</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>Yaw during takeoff during first flight after reboot</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/10033</td>
+												<td>Every time I take off for the first time after a reboot I get some strange yaw behaviour. As soon as the vehicle takes off I get a very fast yaw (more than 90 degrees). If I land and do a second flight it doesn't happen anymore (probably some initialization issue).
+
+Frame: S500
+Autopilot: Pixhawk 4 Mini (fmu-v5)
+PX4 version: Today's Master (100f9553cef2203c818ab98e13d39406c6fc3c8c)
+
+Position Mode:
+Log: https://review.px4.io/plot_app?log=fe704b1d-0e77-4bc4-9c9f-35aa2da2732c
+Video: https://youtu.be/A_9ktAQalvs 
+
+*Log and video are from the same flight
+*Log is 'from boot to disarm'</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>pixhack v5 RC is not detected on master </td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/9989</td>
+												<td>On the pr and master, the copter does not detect the radio, only on stable works well
+first, send to manual mode and later to hold mode
+
+
+https://review.px4.io/plot_app?log=bf71d883-0596-4723-95cc-ed70f2412ce6
+
+**Drone 
+f450, pixhack, 20ams hobbywing esc and iris motors 
+
+on the firmware master 3293fe still work good @dagar</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>NXPhlite issues.</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/9973</td>
+												<td>@davids5  Has issues maintaining altitude  in position, altitude and Auto. The accuracy of the GPS is very poor. in POS it maintain the position  but in mission it doesn't.
+
+commit 5b0ad4e1.
+https://review.px4.io/plot_app?log=ff6f685c-eb1a-412a-93e3-80354cbf602c
+https://review.px4.io/plot_app?log=a5824a2a-e8ff-4f00-b7c4-b1018c694652
+https://review.px4.io/plot_app?log=1c2da437-5699-4ddc-bf01-1d5ab0814187
+https://review.px4.io/plot_app?log=aa719c97-71c4-4d05-aea6-ef6f8a36ce01
+https://review.px4.io/plot_app?log=ff6f685c-eb1a-412a-93e3-80354cbf602c
+https://review.px4.io/plot_app?log=b0db2ecc-a6c9-42a1-8a49-f8afea1ffa2e
+
+commit 9e4e19d4.
+https://review.px4.io/plot_app?log=910de492-f7b7-4fe4-8983-837c3f130218
+https://review.px4.io/plot_app?log=42c37087-c863-4423-9f11-c8bb517da99f</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>Navigator: Fix fixed-wing first order altitude hold</td>
+												<td>https://github.com/PX4/PX4-Autopilot/pull/9850</td>
+												<td>**Issue**
+Navigator's fixed-wing first-order altitude hold (FOH) is currently causing altitude reference oscillations when in any LOITER mode. See screenshot below. Not only altitude, but also pitch and throttle can thus oscillate significantly. We observed this during a recent test flight.
+
+![image](https://user-images.githubusercontent.com/2565608/42387985-53c6343e-8144-11e8-86d2-a42aecc4c5c0.png)
+
+
+Log file from SITL where this can be seen: https://review.px4.io/plot_app?log=f18c45ab-622e-4b1d-9819-03cfb06af2b5 . Here, after t=3:20 the true altitude setpoint is still the same as before t=2:20 (i.e. 630m AMSL) but the FOH logic just wrongly sets it to 660m and adds slight oscillations on top. The exact amount of oscillations depends on waypoint distance, altitude difference etc, but i have seen altitude ref oscillations of up to 30m, resulting in full pitch up/down of the aircraft.
+
+**Analysis**
+See the commit for the location of the code where this is happening. Essentially, every time that the loiter radius of any loiter WP is larger than the acceptance radius calculated from the L1 turn distance, then the Navigator FOH would _not_ consider the waypoint reached and would thus not stop modifying the current altitude setpoint. This leads to the oscillations or offsets in the altitude reference. 
+
+**Solution**
+If in any loiter mode, consider the loiter radius times a factor of 1.2 (same as for the waypoint_reached logic [here](https://github.com/PX4/Firmware/blob/master/src/modules/navigator/mission_block.cpp#L217) as the acceptance radius. Tested in SITL, which should be sufficient for this case.
+
+@acfloria @ryanjAA @antiheavy FYI
+@dagar Made this PR as a quick hotfix independently of your PR at https://github.com/PX4/Firmware/pull/8883/files which supposedly also fixes this but is much larger and where it is more uncertain when this would be merged.</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>EKF2 wind estimate very wrong</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/9726</td>
+												<td>Flown on 6/18 on Master (so almost 1.8 stable)
+
+Actual wind at site was between 12-15 m/s
+
+EKF2 Wind estimate shows ~2-4 m/s.
+
+https://review.px4.io/plot_app?log=e6d82fe3-9b3b-4f4b-b8c6-5af1e930e1a9
+
+Also, if you take look at ground speed vs airspeed we're cruising at about 20 m/s but traveling closer to 35 m/s but wind estimates are nowhere near what we were actually in (we measure wind with an anemometer before testing) and looking at surrounding area wind readings all were consistent with ours. It was blowing your shirt against your body kind of wind, not gentle breeze which is more the 2-5 m/s reported.
+
+Master on 6/18
+fmuv3 firmware on Original Pixhawk (2mb flash)
+QGC Daily also from 6/18
+
+@dagar</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>Poor land detection</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/9696</td>
+												<td>@MaEtUgR @bkueng Could you have a look? This is blocking v1.8
+
+A new flight report just got uploaded:
+https://review.px4.io/plot_app?log=22cb36a7-2ac1-4cd8-b42c-cea152c7a141
+
+Description: beta18_mc03_pxr(05)
+Feedback: take-off in position mode; steady hold; nice tracking; good nav; poor land detection
+Rating: Unsatisfactory
+Wind Speed: Breeze
+Uploader: santiago@3dr.com
+
+Vehicle type: Quadrotor
+Airframe: DJI Flame Wheel F450, Quadrotor x
+Hardware: PX4FMU_V4
+Vehicle UUID: 003200333435510837363434
+Software git hash: aa625d9af880e3be7bd2ddd7ed49d10c74c6ada4</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>FW Mission Start - Wheel increases to max deflection (max pwm value)</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/9540</td>
+												<td>When starting a mission the nose wheel servo instantly increases to ~2000 pwm and there is no time to recover (turns much too much) - need to actually decrease max angles at which the servo can turn but this is a new issue. Here are three logs with this occurring several times during each log. I was able to fly the missions due to some manual offsetting of the wheel but if left centered it would not work every time.
+
+Using an fmu_v2 during these tests. Logging is on from boot so there is a lot of nothing prior.
+
+https://review.px4.io/plot_app?log=02711563-1bd4-40ee-8107-16fa14017b9e
+
+https://review.px4.io/plot_app?log=0285460d-d71f-422b-9d55-b42bccc66cbb
+
+https://review.px4.io/plot_app?log=732a5f97-563d-4141-ae9b-c4c8691277af</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>EKF errors with Fixed Wing</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/9474</td>
+												<td>This was tested on a slightly modified version of PX4 Master
+
+After letting the vehicle sit for an extended period of time we are experiencing two errors "PREFLIGHT FAIL: EKF INTERNAL CHECKS" and "PREFLIGHT FAIL: HIGH IMU ACCEL BIAS". We recalibrated the accelerometers but still experienced these issues. If the plane is armed moderately quickly after booting up and there are no errors thrown, and the aircraft flies normally.
+
+Here are some log examples of the preflight fails on ground:
+
+https://review.px4.io/plot_app?log=a0fb96a2-de2f-4e2d-a4f6-0f930ea53248
+
+https://review.px4.io/plot_app?log=42eda972-2802-4d1e-b236-bed93244427c
+
+We also had a case where the aircraft threw a "PREFLIGHT FAIL: HIGH IMU ACCEL BIAS" error but then still allowed us to arm. On takeoff the aircraft flew erratically and had to be taken over with manual control. Log is posted below.
+
+https://review.px4.io/plot_app?log=e29821e7-9539-46ec-b563-79be1b655cf4</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>2 hard faults (on ground + in air) with PX4FW v1.7.4</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/9348</td>
+												<td>## Bug Report
+We (ASL/ETHZ) have recently had two hard faults that caused Pixhawk to reboot. One of them unfortunately happened in air with a 3.2m wingspan fixed-wing, one happened during on-ground testing.
+
+## Setup
+ - Hardware: mRo Pixhawk (px4fmu-v3 / 2MB flash)
+ - Firmware: Basically PX4FW v1.7.4, i.e. master-branch from 5 days ago (https://github.com/PX4/Firmware/commit/71170dce0a87ce06e00d721a713dfc3dc92dfc11) but with some slight modifications mainly to adapt the mixers to our platform and one custom sensor driver. The estimator is EKF2, the flight controller is the stock controller.
+
+## Hard fault 1: In-air
+We had done 3 short MANUAL flights before that, and in this flight first flew manual for about three minutes and then switched to stabilized. The hard fault ocured 1 minute after switching to stabilized mode. The pilot continued to fly in PX4IO's (important!) manual override mode, and, as he barely noticed the issues, actually went back into stabilized mode for some time before then landing the plane following our instructions. The ulogger-log of part 1 (see below) stops in air. We could not find any fancy stuff in the logs before the log stops. Pixhawk rebooted in-air, and continued logging as usual (part2, see below).
+
+- Log files (with attached hard fault log) from take-off to in-air hardfault and pixhawk reboot: https://review.px4.io/plot_app?log=3b702655-6052-46e6-85e2-fd012d27c25f
+- Log file after the crash (i.e. after the pixhawk reboot until landing): https://review.px4.io/plot_app?log=409fcb62-50ca-42d1-82c7-f1bcaccfe9fd
+- Telemetry logs:[2018-04-20 15-13-09.log](https://github.com/PX4/Firmware/files/1934640/2018-04-20.15-13-09.log) (rename to .tlog!). The reboot happens after ca 1/3 of the log file length, you can see that it happened because the relative altitude is suddently zero or even negative.
+
+## Hard fault 2: On-ground
+This happened during in-lab testing. We performed extensive pre-flight checks, including rebooting FMU (by pressing the reset button) and checking that IO's manual override still works. It did, but (and i assume this is normal because there is already a mixer present) loading the mixer after that provoked reboot fails. We let the plane then just sit there for a couple of minutes, and suddenly Pixhawk rebooted. This was a hard fault, too. We unfortunately assumed this was BECAUSE we had provoked the in-air restart via pushing the FMU reset button (and after testing for another 8 hours in-lab without any hard fault assumed everything was OK). I don't have the ulog-files yet, but i have:
+
+- The hardfault log from the SD card (it looks very similar to the one we saw in flight): 
+[fault_2000_01_01_18_53_35.log](https://github.com/PX4/Firmware/files/1934634/fault_2000_01_01_18_53_35.log)
+- The console output. Note again that this log starts after we provoked an FMU reset via pushing its reset button, that's why it is an in-air restart. 
+[consoleLog.txt](https://github.com/PX4/Firmware/files/1934645/consoleLog.txt)
+
+I might be able to provide the firmware .elf file to allow debugging the hard fault as described in https://dev.px4.io/en/debug/gdb_debugging.html#debugging-hard-faults-in-nuttx if required.
+
+I guess it makes sense to add this to https://github.com/PX4/Firmware/issues/9271 @RomanBapst @LorenzMeier ?</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>No EKF2 init without Vision Position, arming allowing without attitude estimate</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/9020</td>
+												<td>I am running v1.7.3, estimator is EKF2, EK2_AID_MASK is 9 (GPS and vision position).
+
+I've attempted to fly the copter indoors in stabilized mode (there is no GPS fix) without providing VISION_POSITION_ESTIMATE messages. Flight mode changed successfully, the copter was armed and when I've applied throttle, it took off, but was completely uncontrollable with regards to roll and pitch.
+
+Strangely, if you set EKF2_AID_MASK to 1 (GPS only) and have no GPS fix, you can still take off in modes, that don't need GPS fix (altitude control, stabilized) and everything works as intended.
+
+I've expected the copter either to arm and fly normally or at least refuse to arm.
+
+Here is the flight log: https://review.px4.io/plot_app?log=0d1bf158-5559-4bb6-ab31-c23580292b4a</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>VTOL Flight Issue</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/8864</td>
+												<td>@RomanBapst Could you please have a look at this log file?
+https://review.px4.io/plot_app?log=6fa2399a-ccb4-4a2d-8303-091dec28dda0
+
+@PX4/testflights You can tag Roman for future issues directly.</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>VTOL Crash 02/01/18</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/8807</td>
+												<td>We flew a VTOL (Delta - Quad) with Pixhawk 1 (no silicon errata), executed auto (mission) the VTOL climbed, made the transition and reached the first waypoint, then it started to fly in a straight line, tried to recovered and activated kill switch but it continued flying and eventually crashed.
+
+Firmware loaded was master (102c0ea)
+
+Here is the log:
+https://review.px4.io/plot_app?log=7b00d0db-adf7-4a22-a9ba-8f8d55bb0419
+
+Thank you!</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>EKF2 Ekf::initialiseFilter() problem (disable mag, enable HGT_MODE Vision) </td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/8761</td>
+												<td>Hello.
+
+Ekf::initialiseFilter() has some limitations:
+
+// check to see if we have enough measurements and return false if not
+bool hgt_count_fail = _hgt_counter <= 2 * _obs_buffer_length;
+Here it doesn't take into account that user may choose HGT_MODE VISION but aircraft is sitting on the ground with camera giving vision only in air. So if there is no vision while we are on the ground then filter init fails.
+
+bool mag_count_fail = _mag_counter <= 2 * _obs_buffer_length;
+Here it doesn't take into account that mag may be disabled by user (CAL_MAG0_EN or CAL_MAG1_EN ). So if user disable mag manually then filter init fails.
+
+bool ev_count_fail = ((_params.fusion_mode & MASK_USE_EVPOS) || (_params.fusion_mode & MASK_USE_EVYAW)) && (_ev_counter <= 2 * _obs_buffer_length);
+Here it doesn't take into account that aircraft is sitting on the ground with camera giving vision only in air. So if there is no vision while we are on the ground then filter init fails.
+
+Overall, if user choose AID_MASK 24 (vision position and vision yaw only) and do no provide vision data from the start to correctly initialise filter then it fails. But providing vision data when aircraft is sitting on the ground may not be possible in many cases.
+
+if (hgt_count_fail || mag_count_fail || ev_count_fail) {
+    return false;
+}
+ 
+Flight Log: https://review.px4.io/plot_app?log=7dacafb7-cd48-4296-a4c7-03c62a174c41
+
+Expected behaviour:
+1. If user disables mag manually then mag_count_fail must account it correctly depending on CAL_MAG0_EN or CAL_MAG1_EN params.
+2. If user choose vision only mode or choose HGT_MODE vision and do not provide vision data while ekf2 is inited then filter must able to init itself without this data.
+
+For the short-term hack it is possible just to setup all three variables to false (mag_count_fail, hgt_count_fail, ev_count_fail), but this solution is quite ugly.
+
+
+												</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>Intel Aero: uncontrollable attitude</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/8718</td>
+												<td>Running current master 850678b and had a flip upon take-off
+looking at the log, pitch and roll do not look to be registering:
+https://logs.px4.io/plot_app?log=71f9eb76-8ccc-4444-9f6f-5d4b7ab676d1
+
+reverted to yesterday's master 0e65753 and stabilize is fully responsive:
+https://logs.px4.io/plot_app?log=072aada3-d5a4-4f28-bb5d-9cea084674b1
+Something might have been damaged in the flight controller because once altitude mode was engaged, the copter shot up in altitude and hit the roof.
+
+last successful flight was on 0e65753
+https://review.px4.io/plot_app?log=a3026aee-25ab-431a-b076-941084c0cc28</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>Not getting MAV_LANDED_STATE_ON_GROUND</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/8464</td>
+												<td>See [flight log](https://review.px4.io/plot_app?log=4d7df5bf-d8b5-43a5-bd9a-842f8702a131).  I expect to get extended sys state showing MAV_LANDED_STATE_ON_GROUND after doing simple take off and landing.
+
+**Repro**
+1) Run [AirSim](https://github.com/Microsoft/AirSim), with PX4 connected, either SITL or HITL mode.
+2) Run this python script 
+
+```python
+from AirSimClient import *
+import sys
+import time
+import argparse
+
+client = MultirotorClient()
+client.confirmConnection()
+client.enableApiControl(True)
+
+client.armDisarm(True)
+
+landed = client.getLandedState()
+if landed == LandedState.Landed:
+    print("taking off...")
+    client.takeoff()
+        
+time.sleep(2)
+
+print("landing...")
+client.land()
+
+print("disarming.")
+client.armDisarm(False)
+```
+
+Notice client.land() times out because the extended sys state is stuck in MAV_LANDED_STATE_LANDING, and never reaches MAV_LANDED_STATE_ON_GROUND.  This seems to be a regression in v1.7.0, older versions of the firmware worked fine.</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>commander: Fix pre-flight delta velocity bias check level</td>
+												<td>https://github.com/PX4/PX4-Autopilot/pull/8446</td>
+												<td>Previous check level was less than the max achievable by the estimator using current default parameters making the check ineffective. 
+
+Raised in response to log https://review.px4.io/plot_app?log=f619bcb1-7427-4619-86d6-bc53e5e2024e discussed in this issue: https://github.com/PX4/Firmware/issues/7202#issuecomment-300754802
+
+Current ekf2 internal prediction time step is 8 msec and the default value of EKF2_ABL_LIM is 0.4 m/s/s, so the maximum delta velocity bias estimate output by the EKFis will clip at 3.2E-3 m/s using current parameter defaults. The pre flight check level has been updated to 3/4 that value (an equivalent accel bias of 0.3 m/s/s</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>F450 with Pixhawk 1 - f63c821 crash</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/8398</td>
+												<td>The pilot reported it was flying in Auto and was seing the vehicle following the mission in QGC, then the RC signal was lost and the vehicle crashed on the ceiling of a building.
+
+This a screen capture of the messages in QGC
+![qgc_messages](https://user-images.githubusercontent.com/5013954/33461994-da3699f2-d5e9-11e7-9eef-3e34d4edd1ce.jpg)
+
+[Log](https://review.px4.io/plot_app?log=c087212c-24ec-4076-b83c-0c690b5c26ba)
+
+Previous successful fligths the same day
+https://review.px4.io/plot_app?log=a768ef29-6be8-4245-b191-183ffa20ddb6
+https://review.px4.io/plot_app?log=56d2c68b-cff0-4198-bb33-4197e44a4815
+https://review.px4.io/plot_app?log=95e5f4c8-b294-4182-b630-256600424117
+https://review.px4.io/plot_app?log=a75645fa-3af5-494a-b3cf-748f5d9a6d89
+https://review.px4.io/plot_app?log=c7a0d5c4-f79a-47d2-83f6-0a8d94fd216c
+https://review.px4.io/plot_app?log=83b00da7-f696-4af4-b3b7-f768fead3c7f
+
+@dagar </td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>F450 with Pixhawk 3 Pro v1.7.0-rc3 crash</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/8392</td>
+												<td>Flight of DJI F450 with Pixhawk 3 Pro autopilot using v1.7.0-rc3 (66d4a1b3)
+
+The pilot reported the vehicle took off, switched to Auto, reached the first waypoint and it started to climb above 300 meters, the pilot commanded RTL through QGC, the vehicle started to move towards home position but kept gaining altitude. The pilot sent land command through QGC but the vehicle didn't respond, it only responded to RC roll so the pilot engaged the kill switch.
+
+[Log](https://review.px4.io/plot_app?log=0cdfec08-8848-4892-bcff-d4a720e99803)
+
+@dagar</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>RTL issues with multiCopter</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/8389</td>
+												<td>If engaging RTL multiple times in the same flight, the second+ instance of RTL goes towards a previously set path by the first RTL engagement.
+Couple examples:
+https://review.px4.io/plot_app?log=ed176590-4352-4516-b5ed-3892436d6477
+https://review.px4.io/plot_app?log=d9c63fd1-1224-4be7-8985-932a2f670c78
+
+@dagar </td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>FW crash v1.7.0-rc2</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/8380</td>
+												<td>Phantom flying wing with Pixhawk mini autopilot running v1.7.0-rc2 (V3).
+
+After 6 successful flights, during the 7th flight, the pilot took off in manual mode, switched to Auto and the plane accelerated to maximum thrust uncontrollably; once switched back into manual the pilot reported only partial control, attempted to land manually but crashed due to the vast acceleration and only partial control over the craft.
+
+[Log](https://review.px4.io/plot_app?log=6fb19372-e027-4b23-b0e8-5425d409f5f3)
+
+[Video](https://youtu.be/3qIzzh4hfUs)
+
+@dagar </td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>MC: Crash due to Motor Stop (Kill Switch) but I doubt this</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/8263</td>
+												<td>**Bug Report**
+
+I file this as a bug report since I'm concerned that my crash today may have other reasons than accidentally flipping the Kill Switch. 
+
+I was performing some tests to eliminate a strong Oszillation when braking in PosCTL. This was improving, when I wanted to do another Test, shortly after Taking of the Rotors stopped in Mid-Air and the Vehicle crashed on the road where Motors where spinning again. While hitting the Ground the Battery got disconnected (as can be seen in the Telemetry log). 
+
+Sadly the ULG stops shortly after start so about 2meters of flight are missing from the Vehicles Log (this is kind of strange). Also the OSD did not record anything since it claimed that there was no Communication (this may also be a bug of the OSD FW but it said that there was no data for more than 400 secs, which usually does not happen). 
+
+So I'm stuck with the Telemetry Log. This is the last I got over Telemetry (from the Log):
+
+![killswitch](https://user-images.githubusercontent.com/6877067/32623752-760951f8-c587-11e7-8ec7-9ea27c5a3fcf.jpg)
+
+Here comes the 2nd strange Part. The Kill-Switch was engaged and disengaged under **0.5 sec and this twice in sequence**. I checked with my Remote and it is almost impossible to really push the switch to the position in-between where it may flip back in this quick manner. I'm not aware that I flipped the Switch and the Telemetry RC Input (Channel 6) does not reflect any change in Signal. I performed many flights, and never flipped the switch unintentionally.
+
+Telemetry Log (Check last 15 secs) : [2017-11-09 18-05-27.tlog.zip](https://github.com/PX4/Firmware/files/1458838/2017-11-09.18-05-27.tlog.zip)
+
+ULog Upload : https://review.px4.io/plot_app?log=1452c840-3003-4913-b528-1fff3f17d447</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>mc_pos_control: fix position setpoint overshoot</td>
+												<td>https://github.com/PX4/PX4-Autopilot/pull/8240</td>
+												<td>This PR addresses massive position setpoint overshoot caused by `_vel_sp_prev` windup. The bug is critical for offboard mode usage.
+
+Flying in offboard mode we had constantly observed position setpoint overshoots in case of flight to distant setpoint. E.g., here we are flying back and forth in offboard mode: https://review.px4.io/plot_app?log=61a675f6-020a-462f-b1cf-b58974460d44. Overshoots really stand out:
+
+![Overshoots](https://user-images.githubusercontent.com/20798956/32437968-ff23a816-c2f9-11e7-8745-67fef6ea073d.png)
+
+Here is plot of y, vy and corresponding setpoints for 1000 m flight in offboard in SITL on current master (https://logs.px4.io/plot_app?log=92b7ba3c-e2f7-4094-98a3-05e8b5a8493f):
+
+![master](https://user-images.githubusercontent.com/20798956/32437865-b5007b24-c2f9-11e7-9580-2f456f57f81b.png)
+
+As can be seen on the plot, copter have overshooted setpoint for over 60 m because velocity setpoint started to drop from max forward velocity when copter already was 50 m ahead of setpoint.
+
+After debugging of mc_pos_control_main.cpp it became clear that cause of overshoots is windup of `_vel_sp_prev(0)` and `(1)`. The reason is [this fragment](https://github.com/PX4/Firmware/blob/aa699cf4b7e63d9bf17dc2ba2b95e2e02224a6ab/src/modules/mc_pos_control/mc_pos_control_main.cpp#L2455) of `calculate_velocity_setpoint()`: 
+
+```c++
+if (!_control_mode.flag_control_auto_enabled) {
+	vel_sp_slewrate(dt);
+}
+
+_vel_sp_prev = _vel_sp;
+
+/* ... */
+
+/* make sure velocity setpoint is constrained in all directions (xyz) */
+float vel_norm_xy = sqrtf(_vel_sp(0) * _vel_sp(0) + _vel_sp(1) * _vel_sp(1));
+
+if (vel_norm_xy > _vel_max_xy) {
+	_vel_sp(0) = _vel_sp(0) * _vel_max_xy / vel_norm_xy;
+	_vel_sp(1) = _vel_sp(1) * _vel_max_xy / vel_norm_xy;
+}
+```
+So `vel_sp_slewrate()` never see constrained velocity and `_vel_sp_prev` continues to rise to hunders and thousands m/s. When copter approaches the setpoint, `_vel_sp_prev` drops, but it's change rate is limited by `vel_sp_slewrate()`. Because of this windup `_vel_sp` can't begin to lower at time and vehicle overshoots. Overshoots are negligible in AUTO mode because mc_pos_control moves position setpoint so it is always close to the vehicle.
+
+It would be more correct to address this moving `_vel_sp_prev = _vel_sp` to the end of control cycle, but this change causes incorrect behavior of smooth takeoff limiter so I had to move velocity constraining before `_vel_sp_prev` assignment, leaving smooth takeoff limit after it.
+
+This is the same 1000 m flight in SITL after fix (https://logs.px4.io/plot_app?log=d5bd2519-432c-446a-b8c9-fd021c2fdab6):
+
+![fix](https://user-images.githubusercontent.com/20798956/32439298-21fcc03e-c2ff-11e7-963c-92051e217d9e.png)
+
+@MaEtUgR, @Stifael, please review.</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>VTOL crash on V4Pro</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/8186</td>
+												<td>vtol crash 24/October
+
+crash log:
+https://review.px4.io/plot_app?log=da864870-aa30-4133-be64-c766e2e0e9e7
+
+previous successful flights on same platform:
+https://review.px4.io/plot_app?log=1fa2997a-b9d8-4039-af2e-dad379be803c
+https://review.px4.io/plot_app?log=deacbcaa-61ed-41c2-80d2-9b636b66a983
+
+
+Flight conditions:
+aprox 27°C degrees
+moderate winds, 4~5 m/s
+
+Sequence of events:
+auto take-off in MC
+failed auto-transition to FW
+retook manual control in stabilized and successfully engaged manual transition to FW
+engaged mission; vtol headed in correct direction to first waypoint
+
+after a few waypoints, vtol started to veer off coarse and switched back to MC
+switched MC to stabilized at which point it was hard to control and started to dip in pitch and roll violently while losing altitude
+
+@dagar </td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>Mission randomly rejected</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/8066</td>
+												<td>Log: https://review.px4.io/plot_app?log=6f9fa451-d3a6-42dd-b1c7-87261310b139
+Situation:
+Vehicle sat outside with good gps and telemetry lock
+Armed via RC
+Switched from Manual to Mission (jumping over ALTCTL)
+Warning issued: REJECT AUTO MISSION
+
+Then disarm and arm again and it works.
+This happens very often but not consistently.</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>Mission takeoff almost no thrust and does not take off</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/7737</td>
+												<td>On today's master (a merge of https://github.com/PX4/Firmware/pull/7666 and https://github.com/PX4/Firmware/pull/7690)
+
+a VTOL takeoff and a regular takeoff from mission mode was attempted. Both failed.
+RC control from posctl did function from a landed state.
+Switching to mission while airborne did complete the takeoff and vtol takeoff command.
+
+Log: https://review.px4.io/plot_app?log=a5ab7c8f-101f-443f-a612-6e46fadc9d7f
+
+FYI @dagar @LorenzMeier </td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>Change Altitude causes yaw setpoint change</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/7638</td>
+												<td>when loitering after reposition, changing the altitude will cause 180 deg change in yaw sp (facing the previous position)
+ (FW v1.6.5 QG 3.2.0)
+
+1. Take-off
+2. re-position 100m north
+3. when loitering after reaching the point- change altitude to 50m
+4. bug- the drone changes the yaw setpoint (facing south)
+
+http://review.px4.io/plot_app?log=a6cbe484-4ef9-46b4-91f2-f98e3708d407</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>PX4 1.6.3: Strange problem with Airspeed-less transition.</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/7545</td>
+												<td>We were flying 1.6.3 for some time. But recently decided to reset all the parameters with the new defaults. For this we use change of air-frame procedure. So we carefully introduced our PIDs on top of the new defaults. We removed the circuit breaker for the airspeed and thus it did not ask us to calibrate the airspeed so the diff press cal params were empty 0.00. 
+
+In this setup we were not able to complete the transition. It never stopped the quad despite the speed got exceeding 20 m/s and the transition continued forever up to the crash.
+
+http://review.px4.io/plot_app?log=b6653ab1-ada7-4711-abaf-00a6a51249dc
+
+Because we flew the 1.6.3 airspeed-less without a problem we just started thinking. We enabled the airspeed. Calibrated the airpseed. Then again we disconnected it from the breaker.
+
+On the Bench test perfect transitions.
+
+http://review.px4.io/plot_app?log=619b0b6b-ae84-4220-aa52-73ddce2b7fcc
+
+http://review.px4.io/plot_app?log=3647be91-b6f2-4be1-a5a3-f66ca93c8b94
+
+Also we flew without airspeed without any problem. So the only thing we had to do was to calibrate the airspeed in order to make the transition in aispeed-less config.
+
+During this tests we discovered another thing. In airspeed-less mode the only way we could manage the transition is timing. 
+
+There is a parameter VT_F_TR_OL_TM which is supposed to guarantee fixed transition time without airspeed. But in reality in airspeed-less mode the transition is done now by the VT_TRANS_MIN_TM which is the minimum front transition time. The VT_F_TR_OL_TM did not have any effect over the transition timing.</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>[PixHawk3] Accel1 startup bias huge changes</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/7541</td>
+												<td>On my Drotek PixHawk Pro v1.3 I'm facing a strange behavior.
+First I saw sometimes the warning "Accels inconsistent, check cal". After further investigations, I saw that usually, the Z-axis value is usually around 9.8m/s2, but sometimes, the value of the Acc1 is completely wrong (e.g.; 2 or 15). The value of the accelerometer 0 is always correct.
+
+```TOPIC: sensor_accel instance 0 #1
+
+timestamp: 11548976
+
+integral_dt: 4000
+
+error_count: 0
+
+x: -0.0971
+
+y:  0.0563
+
+z:  9.8932
+
+x_integral: -0.0003
+
+y_integral:  0.0002
+
+z_integral:  0.0391
+
+temperature: 42.7938
+
+range_m_s2: 78.4532
+
+scaling:  0.0024
+
+x_raw: 7
+
+y_raw: 40
+
+z_raw: 4074
+
+temperature_raw: 5815
+
+device_id: 3608074
+
+```
+
+```TOPIC: sensor_accel instance 1 #1
+
+timestamp: 163650940
+
+integral_dt: 4006
+
+error_count: 0
+
+x:  0.0778
+
+y:  0.4095
+
+z:  2.6501
+
+x_integral:  0.0003
+
+y_integral:  0.0014
+
+z_integral:  0.0081
+
+temperature: 59.1025
+
+range_m_s2: 156.9064
+
+scaling:  0.0048
+
+x_raw: 53
+
+y_raw: 29
+
+z_raw: 480
+
+temperature_raw: 8701
+
+device_id: 1442826
+
+```
+After a few consecutive reboots on the pixhawk, I obtained the following sequence:
+The behavior was the following: `first calibration` -> `-9.8` -> `reboot` -> `-15` -> `2nd calibration` -> `-9.8` -> `reboot` -> `-3` -> `3rd calibration` -> `-9.8` -> `reboot` -> `-15` -> `reboot` -> `*-9.8*` -> `reboot` -> `-15` -> `reboot` -> `-15` - `reboot 3x` -> `-9.8` -> `reboot` -> `-15` .........
+
+I tried with two other new PixHawks Pro v3.1 and I can reproduce the error. However, strange thing, I tried on a v1.2 and I wasn't able to obtain the same result after more than 10 consecutive reboots.
+
+Here is a log where the value is correct:
+http://review.px4.io/plot_app?log=170ce58a-794e-414d-8607-168ce8c734ef
+And here, one with the incorrect bias:
+http://review.px4.io/plot_app?log=e0bba09b-1129-4438-8ded-baede72f24cc
+
+The logs come from a device uncalibrated, but I had the same issue with an autopilot fully calibrated (thermal + scale&offset).</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>Flyaway after loss of datalink (v1.6.2)</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/7535</td>
+												<td>Hello,
+Few days ago I flown my multicopter for about 1.5 km. and almost got flyaway, only using RC saved it for safe landing. 
+I got 'ALL DAT LINK LOSS' and it seems that RTL has been engaged (I still had downlink). but, instead of flying toward home position for landing the multicopter started to fly very fast backward.
+from the log I see that just after losing the datalink (at 10:28) it did got new heading, X and Y setpoints of home. but just after that (when the link was regained?) the position setpoint sets back to its current position, no change of heading setpoint. and the multicopter gets higher and higher pitch, that leads it to fly very fast backward, not closing the X and Y position setpoints. I have tried to send new commands reposition, pause the multicopter seems to be affected by them but still contiues to fly at very high speed.
+At this point (2km away) we toke RC control, and fly it to home for landing.
+
+log: 
+http://review.px4.io/plot_app?log=2da94d7c-a374-4bb3-b7f9-efd8fecaf445
+</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>Pixhawk Pro (V4Pro) Quad near flyaway</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/7495</td>
+												<td>Took off in position mode
+Almost immediately after taking off, copter started to fly away and would not respond to user input
+eventually regained control in altitude mode after several minutes and several hundred meters away
+http://review.px4.io/plot_app?log=2b1d4ff4-e15e-48ac-870d-2ebbe8748afc
+![bokeh_plot](https://user-images.githubusercontent.com/13203106/27606012-50a5876a-5b33-11e7-9c58-b839a71e1910.png)
+
+Two succesful flights using same setup, same code, same flightplan loaded:
+http://review.px4.io/plot_app?log=776e6bbf-2971-4195-8e22-6b9d0ffe167e
+http://review.px4.io/plot_app?log=2b3f59bb-42d5-43b6-aaea-2e335318e275
+
+Had another near flyaway on this same copter a few days ago:
+http://review.px4.io/plot_app?log=00b0b048-39bd-45cd-910b-c3d54b0f39ad
+
+Copter consists of
+Pixhawk Pro
+3DR ublox M8N with HMC5983 magnetometer
+DJI F450 quad frame
+DJI E300 propulsion system
+3S 5200mAh battery
+FrSky D4R-ii receiver
+
+@priseborough @bkueng @dagar </td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>PX4 1.6.1: Land detector did not disarm after land in mission VTOL</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/7402</td>
+												<td>Hello,
+
+We made a mission without RC control only with the QGC. We used version 3.1.3. Everithing went ok except the land detector did not disarm after the mission was complete and the VTOL was landed. The only way we could disarm with 3.1.3 was emergency stop.
+
+VTOL left on the ground with spinning motors for some time.
+
+Here is the log:
+http://review.px4.io/plot_app?log=971f681b-2e49-4e67-816f-5b3b9c52a817
+
+Also in Position or Altitude modes we have the same problem. The land detector probably is working, because when we touch down in one of Alt and Pos Modes the QGC says we have to be either in manual mode or landed in order to disarm.
+
+I saw it is very easy in QGC 3.2 to disarm. But it is still very nice if in the case of mission and Guided modes after touch down the land detector could at least disarm in 10-20 seconds.</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>Takeoff not detected after 2nd time in altitude mode</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/6651</td>
+												<td>Hello
+With release v1.6.0rc1 or the current master the takeoff seems not to be detected after the second time arming in altitude mode:
+http://review.px4.io/plot_app?log=b29f4633-e7c9-49a9-ab92-18106d9f01f9
+
+```
+2017_02_23_09_31_15: [logger] file: /fs/microsd/log/2017-02-23/09_31_1
+2017_02_23_09_34_09: ARMED by RC
+2017_02_23_09_34_11: Takeoff detected
+2017_02_23_09_34_29: Landing detected
+2017_02_23_09_34_31: DISARMED by auto disarm on land
+2017_02_23_09_34_36: ARMED by RC
+2017_02_23_09_34_46: DISARMED by auto disarm on land
+```
+The first time arming in altitude, the takeoff and landing is detected fine.
+After the 2nd time arming, the motors are only spinning with idle thrust for some seconds and the attitude/position controller is not responding to any rc commands or nick/roll movement.
+In case I switch to e.g. stabilized mode and then back to altitude mode again (when the motors are spinning with idle thrust) the takeoff is detected, the motors are spinning up and the attitude/position controller seems to be working again.
+
+
+
+
+
+</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>mc_pos_control: hotfix for possible thrust below minimum thrust setting</td>
+												<td>https://github.com/PX4/PX4-Autopilot/pull/6392</td>
+												<td>Hotfix after a crash because of a heavily negative desired thrust that got clipped to 0 by the mixer.
+0 thrust meant no more attitude tracking.
+
+Flight log that lead to these changes:
+http://review.px4.io/plot_app?log=90a3f19b-c8c2-44db-887f-0e6f5488aa84</td>
+												<td>closed</td>
+											</tr>
+											<tr>
+												<td>Intel Aero CPU load & timings</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/6037</td>
+												<td>@lucasdemarchi @lfelipe The normal timing for PX4 is looking like this:
+
+
+													<img width="844" alt="screen shot 2016-12-12 at 17 49 11" src="https://cloud.githubusercontent.com/assets/1208119/21107912/a0c49442-c093-11e6-8f9a-eecb1bbe3ea5.png">
+
+
+From this log:
+http://review.px4.io/plot_app?log=1253eec0-17f1-4051-b858-dce51b268928
+
+Aero looks quite different:
+http://logs.px4.io/plot_app?log=a24d89aa-d930-4894-9c6e-65ae449476ba
+
+
+														<img width="844" alt="screen shot 2016-12-12 at 17 54 00" src="https://cloud.githubusercontent.com/assets/1208119/21108056/045efbb4-c094-11e6-8095-217c18f02cc3.png">
+
+We need to work out what is inducing the load and churn on Aero. Its not the logging subsystem but must be something else.
+														</td>
+														<td>closed</td>
+													</tr>
+													<tr>
+														<td>Offboard acuator setpoints interfere with lockstep in SITL</td>
+														<td>https://github.com/PX4/PX4-Autopilot/issues/20052</td>
+														<td>## Describe the bug
+When enabling actuator setpoints for offboard mode, the simulation progresses in a much slower speed than normal simulations. This seems to be caused by actuator controls published in offboard module interfering with lockstep.
+
+This bug was discovered by @MarvinHarms 
+
+## To Reproduce
+- Publish `offboard_control_mode` message with actuator controls enabled (internally from PX4)
+- Publish `actuator_controls_o` message when in offboard mode
+- switch vehicle to offboard mode
+
+## Expected behavior
+Lockstep should continue whether or not the vehicle is in offboard mode
+
+## Log Files and Screenshots
+![ezgif com-gif-maker (7)](https://user-images.githubusercontent.com/5248102/184627710-599d08b6-7dd7-4575-87b4-3a20d15122c4.gif)
+
+- Video: https://youtu.be/Mpve5DSk0qk
+- Flight log: https://review.px4.io/plot_app?log=e2dcc255-3b39-40df-ae5b-3576c6185698
+
+## Additional context
+- We are currently implementing an iNDI controller using the offboard interface internally
+- Offboard actuator setpoints were added in https://github.com/PX4/PX4-Autopilot/pull/18581 , where lockstep has been disabled for testing until now</td>
+														<td>open</td>
+													</tr>
+													<tr>
+														<td>offboard land detection</td>
+														<td>https://github.com/PX4/PX4-Autopilot/pull/19560</td>
+														<td>**Describe problem solved by this pull request**
+We use offboard mode to control our quadrotor.
+We generate a trajectory in z position with consistent derivatives.
+When we land, our z position increase downward, z speed converge to our target (1m/s downward) and our z acceleration converges to 0 when the speed stabilizes.
+
+The issue is that when we hit the ground, land detector detect it but the position control detect that we want to takeoff so thrust increase and it never disarm.
+
+The takeoff detection is due to our z acceleration been about 0 but with a very small oscillation that makes point upward  by moments.
+
+Here is a log with one false detection : https://review.px4.io/plot_app?log=ced2541e-fd20-4fd3-88c6-2f284262bc95
+
+**Describe your solution**
+in offboard mode, if we have a valid z position setpoint superior (so more downward) than estimated, do not consider we want to take off. Same thing on z speed.
+
+This solution will change the behavior: in offboard mode, if we have a valid z position setpoint more downward than estimated and a speed setpoint pointing upward, we will no longer consider we want to take off.</td>
+														<td>open</td>
+													</tr>
+													<tr>
+														<td>Catapult launch: Motor delay not working </td>
+														<td>https://github.com/PX4/PX4-Autopilot/issues/18416</td>
+														<td>Hi I need to open this ticket again. Initial ticket was: 18354 (it was closed. I can^t change it back via the Web GUI)
+
+PX4 (SW 1.12.3 / HW holibro pixhawk 4) The Motor starts immedialtely after launch is detected. This causes damage to the propeller, because it hits the catapult. Actual behaviour: If Accelerometer threshold > LAUN_CAT_A then Motor starts immediately Expected behaviour: If Accelerometer threshold > LAUN_CAT_A then Motorstart is delayed by value of LAUN_CATMDEL waits then motors starts.
+Parameters: LAUN_CAT_MDEL and LAUN_CAT_T have no effect. Motor startup is not delayed as expected.
+
+The log is made with Master
+https://review.px4.io/plot_app?log=06b779a9-95b5-4413-a82f-d4f5734ed81d
+ It was working in 1.9.1
+</td>
+														<td>open</td>
+													</tr>
+													<tr>
+														<td>Takeoff close to Geofence causes drone to fly away uncontrollably</td>
+														<td>https://github.com/PX4/PX4-Autopilot/issues/18297</td>
+														<td>**Describe the bug**
+Drone flies perpendicular to geofence on takeoff close to geofence. The drone places a setpoint ~7 m away from launch point and tries to reach it aggressively.  This is very dangerous behavior which can and has caused crashes in the past.
+
+Today we went out with another drone (different flight controller and hardware) to try to trigger the same behavior and managed to do so immediately. We did two flights to ensure repeatability.
+
+
+**To Reproduce**
+Steps to reproduce the behavior:
+1. Place drone close to but not outside of geofence border.
+2. Enter takeoff mode. 
+
+
+**Expected behavior**
+Takeoff to set altitude.
+
+**Log Files and Screenshots**
+[First flight](https://review.px4.io/plot_app?log=3d188929-9d67-4ff6-8a6f-eff40df8d200)
+[Second flight](https://review.px4.io/plot_app?log=5f430551-e48f-4486-ae38-35db4489b12d)
+
+
+**Drone (please complete the following information):**
+- FW Version 1.12.0
+- Holybro S500
+- Pixhawk 4 FC
+- CUAV H16 radio module
+
+</td>
+														<td>open</td>
+													</tr>
+													<tr>
+														<td>Navigation Errors during FW Flight</td>
+														<td>https://github.com/PX4/PX4-Autopilot/issues/17635</td>
+														<td>Pixhawk 4
+1.11.3 - Fixed Wing
+
+After some debate on this I decided to open an issue.
+
+Navigation between waypoints is not consistent and does not follow the expected direction (more detail below). The direction is circuitous.
+
+
+
+In the first log, it was clear there was some mag interference (this was seen on the ground prior to takeoff - approximately 10 degrees could not be corrected even after multiple calibrations) but the issue was that the trajectory from one waypoint to the next does not make sense (in parts of the flight). Instead of going from one point to the next, there are large turns between them.
+
+I questioned if this was due to an insufficient SD card speed for reading the mission. Testing the SD card speed in QGC gave an average speed of 63kb/s (much too slow but this was only changed after these flights) and there are logging dropouts at some of the points in the log. Right around 22 min where the location looks to be sideways, it was not. In the telemetry replay it does a coordinated turn. This turn at least makes sense, that is the direction is was supposed to go. That changes though later in the same flight.
+
+At 22:46 it looks like the aircraft starts to circle down. Maybe to hit the altitude set-point but that does not make too much sense seems it looks like it doesnt actually miss it. After it does circle down though it then just decides to go left (no errors still) and then circle around again. Mag issue? There is no reason for a turn to be in that direction though. The question becomes is if this is mag related and or SD card read access speed and mission related.
+
+Log 1 - 
+https://review.px4.io/plot_app?log=72ac3453-0872-447d-8716-3fcca37c1e9e
+
+
+
+
+
+
+The below log had a new mag installed and there weren't any offsets observed or mag ratios, etc but at 13:17 instead of turning left, the aircraft made a roll to the right before banking to the left to turn. Additionally, it went directly through the waypoint before turning instead of starting at the L1 distance and making the typical rounded turn. From 13:18-13:25 the log looks like the aircraft is going to the wrong direction but there is also a log dropout there, in the telemetry log the orientation and direction looks correct in terms of how the aircraft flew but not why it still turned so late and went right then left. 
+
+
+Log 2-
+https://review.px4.io/plot_app?log=1e2b37e4-b557-45d3-9f73-6fb099bf0fa4</td>
+														<td>open</td>
+													</tr>
+													<tr>
+														<td>pitch setpoint drops just after the back-transition </td>
+														<td>https://github.com/PX4/PX4-Autopilot/issues/16483</td>
+														<td>**Describe the bug**
+
+there's a sudden drop in the pitch setpoint just after the back transition of the standard vtol in the master. i think the initial setpoint after the back transition is set to zero  just after the back-transition, i just looked at the value of _v_att_sp.pitch_body in the vtol_att_control_main.cpp file in case mode:ROTARY_WING
+
+**To Reproduce**
+Steps to reproduce the behavior:
+you can load this plan and reproduce the same with standard_vtol
+[plan.zip](https://github.com/PX4/PX4-Autopilot/files/5765173/plan.zip)
+
+**Expected behavior**
+pitch setpoint should not drop immediately just after the transition, it should come down gradually.
+
+**Log Files and Screenshots**
+https://review.px4.io/plot_app?log=19538338-d46f-4c67-a3ca-11e7d1566eb9
+
+Add screenshots to help explain your problem.
+![image](https://user-images.githubusercontent.com/25317204/103545932-4734cb00-4ec8-11eb-930a-e547bc36c476.png)
+
+**Additional context**
+I think when changing from the flight_mode it zeros the pitch setpoint on full rotary_wing mode.
+</td>
+														<td>open</td>
+													</tr>
+													<tr>
+														<td>undesirable back-transition behavior.</td>
+														<td>https://github.com/PX4/PX4-Autopilot/issues/16474</td>
+														<td>when using just the vtol-transition mission item in qgc, or flipping the switch from fw to mc mode stabilized mode, the curved path gets executed with a rolling behavior in the back transition
+
+this is solved in the pr-vtol-rtl-fixes when using vtol transition and land mode, but however it still persists on the above mentioned conditions as the l1 controller is present in those two conditions in the back-transition.
+
+**Alternate Solution**
+https://github.com/PX4/PX4-Autopilot/blob/d502292d0731a38c513dc1224c135b6f1965586e/src/modules/vtol_att_control/standard.cpp#L283
+in the current master, _fw_virtual_att_sp->roll_body diverges from zero after some time in the back-transition, can we make it a hard zero as we don't want the aircraft to roll in the back-transition anyway?
+
+**To Reproduce**
+to reproduce, in a mission set a vtol-transition mission item at the end of the mission. the behavior can be observed.
+
+
+**Expected behavior**
+The vtol should transition to mc_mode in a straight line without going in a curved path with a roll.
+
+**Log Files and Screenshots**
+https://review.px4.io/plot_app?log=1e1bb5d2-5260-40da-bd7e-46fadf55fc6c
+
+**Additional context**
+i think this addresses the same issue
+https://github.com/PX4/PX4-Autopilot/issues/14933
+
+https://github.com/PX4/PX4-Autopilot/pull/14405/files
+this introduced l1 controller to be present in the back transition which is good, but i think it needs to be further analyzed, cause this causes the aircraft roll in the back transition, which is not desirable. 
+ </td>
+														<td>open</td>
+													</tr>
+													<tr>
+														<td>VTOL standard flight to review</td>
+														<td>https://github.com/PX4/PX4-Autopilot/issues/16427</td>
+														<td>
+![Screenshot from 2020-12-18 13-34-46](https://user-images.githubusercontent.com/84712/102648630-d5255d80-4135-11eb-91be-57a1276bbcb2.png)
+
+
+
+https://review.px4.io/plot_app?log=4240e1a9-5f40-4e5b-be73-812f59a072e3
+
+https://px4.slack.com/archives/C39C4E709/p1608315970050900</td>
+														<td>open</td>
+													</tr>
+													<tr>
+														<td>[VTOL] Broken Weathervane & broken MPC_YAW_MODE</td>
+														<td>https://github.com/PX4/PX4-Autopilot/issues/15673</td><td>**Describe the bug**
+The weather vane does not work anymore in Mission (MC mode). Neither does MPC_YAW_MODE have an effect on the heading. So the drone ends up flying in all directions with the same heading, which is ugly to watch and can be dangerous in high winds. 
+
+**To Reproduce**
+
+Tested in SITL on v1.11.0:
+1. Launch Gazebo with `make px4_sitl gazebo_standard_vtol__windy` (by default 4m/s wind from South to North)
+2. Execute some mission which contains navigation in MC mode (e.g. [Dummy_MC_loop.zip](https://github.com/PX4/Firmware/files/5162328/Dummy_MC_loop.zip))
+3. Observe the heading.
+
+
+
+**Expected behavior**
+As stated in the docs (https://docs.px4.io/master/en/config_vtol/vtol_weathervane.html#mission-mode-behaviour). The drone should head into the wind. Also, MPC_YAW_MODE should behave as for a normal MC. I'm open to discussion whether the weather vane should have precedence over the heading calculations of MPC_YAW_MODE or not or if both should be active at the same time and you end up with a compromise. But certainly not changing the heading at all is not good.
+
+**Log Files and Screenshots**
+ https://logs.px4.io/plot_app?log=41546a93-eaeb-45c8-af75-fcfd2af6b967 : always heading east, neither weathervaning nor heading towards waypoint.
+
+https://review.px4.io/plot_app?log=5cd8b35e-390b-476c-85fb-30ac2fd3ff42 : high winds on a custom branch with minor modifications from v1.11-beta. The drone gets carried away because it can't fight the wind in its bad orientation. --> dangerous situation.
+
+
+**Drone (please complete the following information):**
+gazebo_standard_vtol
+</td>
+													<td>open</td>
+												</tr>
+												<tr>
+													<td>Pixhawk 4 + Drotek Sirius RTK GNSS compasses inconsistent</td>
+													<td>https://github.com/PX4/PX4-Autopilot/issues/15312</td>
+													<td>**Drone**
+S500 with Pixhawk 4 and Drotek Sirius RTK GNSS (with RM3100 magnetometer).
+Pixhawk 4 with rotation_roll 180
+GPS no rotation
+
+Installed master firmware to Pixhawk 4, the vehicle couldn't arm due to compasses inconsistent pre-arm check error, this error is not cleared even after compass calibration. Pixhawk 4 and GPS (with external compass) are facing forward, but the error says they are inconsistent. Installed previous commits until I found the issue was introduced by commit e819f99, before this commit I'm not getting this error.
+
+Compass calibration can be performed without issue, but this will not clear the pre-arm error.
+
+Compass calibration was performed outdoors and indoors with the same result.
+
+Checked with the GPS (with compass) included with Pixhawk 4 and is working, so this is issue is with the Drotek Sirius RTK GNSS device. 
+
+**To Reproduce**
+1. Use Pixhawk 4 + Drotek Sirius RTK GNNS
+2. Install commit  e819f99 or a newer commit.
+3. Try to arm
+4. See compasses inconsistent error
+5. Calibrate compass
+6. Try to arm
+7. See error
+
+**Expected behavior**
+Vehicle should be able to arm since compasses are facing same orientation.
+
+**Log Files and Screenshots**
+https://review.px4.io/plot_app?log=8e97f377-2aff-4c9a-8306-a9f13b43df1c
+
+![aec1b92_ng](https://user-images.githubusercontent.com/37613459/87255296-646b6e00-c43e-11ea-90b7-b8b367243d07.PNG)
+</td>
+													<td>open</td>
+												</tr>
+												<tr>
+													<td>V1.11.0 (Beta&Master) MC control doesn´t switch off in FW (tiltrotor-vtol)</td>
+													<td>https://github.com/PX4/PX4-Autopilot/issues/15155</td>
+													<td>all mc mot control remains active (VT_FW_MOT_OFFID doesn´t apply) even the nacelles are full swivelled to FW (differental thrust is only added in FW)
+
+It can be testet on the ground with Convergence Vtol: 
+arm -> apply a bit throttle -> switch to FW -> nacelles swivel in 2 steps fully forward to FW -> Mot 3 continues running -> all 3 Mot are still under MC control if you apply roll/pitch commands
+
+fully to FW ->In this case Mot 3 should turn off and Mot 1,2 now should only be controlled by differential thrust 
+
+https://review.px4.io/plot_app?log=dcd387e6-8402-4b7b-b53c-14096527066f
+
+Convergence with Pixracer R14 
+Made a real flight and thought, I could remove the problem with my external mixers ... but unfortunately this ended in a crash. 
+https://review.px4.io/plot_app?log=379ea7f6-38e4-40ed-829b-6e333d91b053</td>
+													<td>open</td>
+												</tr>
+												<tr>
+													<td>Altitude Losses and Gains: Possible Barometer Issues</td>
+													<td>https://github.com/PX4/PX4-Autopilot/issues/15096</td>
+													<td>**Description:**
+PX4 struggles to hold altitude using the barometer in both the AltHold and PosHold flight modes. Cross-breezes result in altitude gains/losses. Maneuvers result in altitude loss. Typically, the more rapid the maneuver the larger the altitude loss.
+
+**To Reproduce:**
+
+_Method 1_
+1. Drone switched into position hold and armed after a 3D-lock is obtained.
+2. Take off to an altitude far beyond the ground-effect zone.
+3. Pick an axis to evaluate (eg. positive x-axis)
+4. Perform a full-stick maneuver along that axis until max horizontal speed is achieved.
+5. Release the sticks
+6. Altitude is lost near the end of the position change and during the braking maneuver. For these maneuvers the altitude returns to the set-point after 2-5sec (far too long).
+[Maneuver Altitude Loss]( https://review.px4.io/plot_app?log=4972dc44-0636-4abc-a065-dbc4c23d32f5)
+
+_Method 2_
+1. Drone switched into position hold and armed after a 3D-lock is obtained.
+2. Take off to an altitude far beyond the ground-effect zone.
+3. Release sticks (no RC input). 
+4. Wait for a cross-breeze
+5. Altitude raises or lowers (multiple meters). During these tests the drone very slowly (10-25sec), if ever, returns to the setpoint. 
+[Wind Altitude Gain/Loss](https://review.px4.io/plot_app?log=511f8756-384c-4a3d-b214-4f9a8f401b58)
+
+**Expected Behavior:**
+In AltHold and in PosHold, if the z-setpoint is not changed, the craft will not change altitude.   
+
+**Screenshots:**
+_Method 1_
+![Forward Dip](https://user-images.githubusercontent.com/66424788/84535991-eb4fee00-acba-11ea-9d09-45d2a5344f4c.png)
+Caption: Note the bulge in the barometer altitude coupled with the decrease in thrust both of which result in a dip during and after maneuvers.
+
+_Method 2_
+![Wind Altitude Gain](https://user-images.githubusercontent.com/66424788/84535994-ebe88480-acba-11ea-8888-dcaf1bbf9951.png)
+Caption: Note the three bulges in velocity and the area between the actual and desired curves. NO RC commands or values were given between 2:40 and the 3:25 time-stamps. After 3:25, the drone started to gain many meters of altitude at which point a downward RC command is given. Even though almost full-stick down is commanded, the copter continued to rise until the breeze (2-5mph) settled. 
+
+**Craft Specifications:**
+The craft itself runs 18x5.5in props on a 900mm frame and uses a Holybro Pixhawk 4 running PX4. The craft is rather heavy but well within the motors and batteries specifications for thrust and power available/required respectively.
+Firmware version v1.10.1 was used for all initial testing. Firmware version v1.11.0-beta2was used to connect external barometers through the I2C port (ex. for BMP388) because this is not provisioned for in v1.10.1.
+These same performance issues are also present and reproducible on a much lighter craft (15x5.5 props, 750mm frame, Pixhawk 4, v1.10.1).
+
+**Attempted Solutions:**
+1)	The first tests were performed using the stock on-board MS5611 barometer with no shielding. The flight performance was fine but produced noticeable dips upon maneuvering in any direction. 
+2)	The issue  https://github.com/PX4/Firmware/issues/10058 suggested shielding the barometer, and adjusting the EKF2_BARO_NSE, EKF2_PCOEF_%%%, EKF2_BCOEF_%%%, and EKF2_DRAG NOISE parameters. Shielding the barometer in an indirectly ported enclosure did not produce noticeable differences. (in either data or performance). Adding open-cell foam around the PX4 inside the enclosure also did not produce noticeable differences. Moving the barometer very far away from the propellers did not produce noticeable differences.
+3)	After shielding and isolation were tested and had no effect on the problem, the suggested parameters began to be changed but shielding with enclosure and foam was kept for the remaining test. Setting the XN, XP, YN, and YP EKF2_PCOEFs to their minimum value of -.5 very slightly reduced the dip (10-30cm out of 1-3m). 
+4)	After PCOEFs were ineffectual, the BCOEFs were next to be altered. A theoretical ballistic coefficient was calculated for this aircraft using the drag coefficient of a flat-plate, the mass of the aircraft, and the area of the central plate. The calculated value was 23.96kg/m^2 (1kg/m^2 lower than default). The ballistic coefficient parameter was altered from minimum to maximum values. The EFK2_drag.innovations[0:1] were examined after each flight but did not change in RMS value. EKF2 Replay was attempted using JMavSim on a Windows 10 machine but errors were thrown upon completion of the documentation steps and replay never worked. Changing BCOEFs had little to no effect on the EKF2 innovations for both drag and wind estimation.
+5)	The last of the suggested parameters was EKF2_BARO_NSE. Raising EKF2_BARO_NSE to a value of 5m improved flight performance and reduced dips while maneuvering. This is NOT a solution to the problem as all it does is transition estimation authority from to the barometer to the GPS. The entire intent of this testing is to have consistent altitude performance even without GPS assistance (to fly in buildings and structures) therefore this is not the most desirable solution.
+6)	After the above parameters failed to solve the problem, the EKF2_HGT_MODE was changed from barometer to GPS. This stopped the dip from occurring but once again is not a solution. After GPS was used, a downward-facing LIDAR was used with range-aid enabled without it being the primary height sensor and with range-aid and as the primary height sensor. Both of these removed the dip while maneuvering and followed terrain well. These too are undesired solutions due to limited LIDAR range and the possibility of ground-based objects messing up the LIDAR altitude estimation.
+7)	The next series of testing began with an external barometer/GPS from Zubax enabled via UAVCAN. This also featured the MS5611 chip and yielded the same results as the on-board MS5611 for all of the above tests. This GPS was also enclosed in the Zubax designed enclosure with open cell foam in the barometer enclosure (inside the overall enclosure). With UAVCAN enabled, both the external barometer and the external GPS were used as the primary GPS and barometer but did not produce noticeable differences in flight performance.
+8)	No other types of barometers were supported in v1.10.1 so v1.11.0-beta2 was used for the rest of the testing. The v1.11.0-beta2 code was altered to enable the driver for the BMP388 acquired from Adafruit. The MS5611 driver was also disabled to ensure that the BMP388 would be used for pressure-height data and not the on-board sensor. The PIDs for the rate, attitude, and XY- position controllers were able to be tuned to achieve the desired performance. The Z-position/velocity controller gains were left at default. Hover flight could be achieved as expected however, when a breeze blew the craft would gain altitude and not settle back to the set-point. The second log of the 3-4min flight is the best example of this. No control input would be given and the craft would gain altitude at the maximum allowed vertical speed (2m/s, default = 3m/s). The P and I values of the controller were reduced to close-to or just above the minimum allowed values (to create a sluggish and under-tuned controller) and still the craft would ascend at maximum vertical speed in a slight cross-breeze (2-5mph). For the end of the flight, the rise in altitude was partially counteracted by a downward RC command but almost full-stick down was commanded before the aircraft consistently began to descend.
+
+**Notes:**  
+I hypothesize that both flight abnormalities are caused by the pressure changes across the barometer. That being said, all tested barometers were a fully enclosed as they could have been without rendering them inoperable. My second hypothesis is that the altitude fusion in the EKF2 does not handle these barometer fluctuations well. The same craft flown with a DJI A3 controller does not have these problems when flown under the same conditions (wind, maneuvers, poor GPS environment, etc.). These logs and descriptions hopefully show problems with dynamic pressure handling (either craft moving in static air or air moving over static craft) that Pixhawk 4 has. This problem effects AltHold, PosHold, and Loiter flight modes and mission performance in many different scenarios and its significant diminishment or removal would make PX4 based systems more useful and versatile. 
+</td>
+													<td>open</td>
+												</tr>
+												<tr>
+													<td>Drone flies towards old mission waypoint on arm, when no current=1 is set on new mission</td>
+													<td>https://github.com/PX4/PX4-Autopilot/issues/14981</td>
+													<td>**Describe the bug**
+When a mission is stopped midway, and the drone then lands, receives a new mission with all items having ``current=0`` parameters and is armed again, the drone immediately flies towards the waypoint from the old mission, instead of executing the first item on the new mission. This crashed our drone as it tilts and tries to fly forward before properly "takeoff" to a safe altitude, thus catching the ground with the landing struts.  
+
+The resetting of ``mission_current`` seems to happen upon arming, but there seems to be some sort of race-condition, as the drone reports ``mission_current`` to reset to 0 upon arming, but the log shows the drone still gets a setpoint for the old waypoint and tries to fly that, before the ``mission_current`` index reset is realised.
+
+Thomas Stauber spotted that our velocity controller asked for a 3m/s horizontal velocity immediately upon arming, which indicated that the drone was flying towards an old mission item.
+![image](https://user-images.githubusercontent.com/7889925/82942796-d4aa5700-9f98-11ea-85f8-13f5744f75a6.png) 
+
+**To Reproduce**
+Steps we did to reproduce the behaviour:
+1. Fly normal mission
+2. Before normal mission finishes, switch mode to "land now" or "RTL" and land the drone
+3. Start new flight with identical mission. (It uploads the same mission again, but doesn't clear the old one first)
+4. Arm and send "start_mission" command
+5. Drone attempts to fly to the waypoint it was at in the last mission and thus flip in the direction of that waypoint.
+
+**Expected behavior**
+Upon uploading a new mission with no ``current=1`` parameters set, we would expect the drone to reset the current-index of mission items to 0. Intuitively I would expect the index to get reset when the PX4 accepts the new mission and sends ``MAV_MISSION_ACCEPTED`` and not first on arming the drone. 
+
+**Log Files and Screenshots**
+flight log: https://review.px4.io/plot_app?log=116b78e1-7732-4e6e-acf8-88e640d8cdfc 
+video of the takeoff and flip: https://nextcloud.sdu.dk/index.php/s/46H7m9TXgXkQqQF
+
+log from our GCS rosbag, showing the ``mission_current`` is not reset until arming, but keeps the old missions current index. The new mission had been uploaded and accepted by the PX4 before this snippet from the log:
+```
+---
+data: 0
+---
+data: 0
+---            <----------- a second before it changes to 15, the flightmode of the FC is set to "Auto - Mission". It appears the current_waypoint change is due to the flightmode being changed
+data: 15
+---
+data: 15
+---
+data: 15
+---
+data: 15
+---
+data: 15
+---            <----------- Right at the same time it goes from 15 to 0, is when the drone report it is "armed". So it seems like the index isn't reset until the drone is armed
+data: 0
+---
+data: 0
+---
+data: 0
+---
+```
+
+
+**Drone (please complete the following information):**
+- Hexacopter using Pixhawk 2.1 Cube
+- (The long legs shown on the video are due to testing, we know they are long, ugly and doesn't help make it stable)
+- SD-card for PX4: Scandisk Edge 16GB - Class 4
+
+**Additional context**
+
+As soon as we added ``current=1`` on the first item of the new mission we can no longer reproduce this error and we are using that fix for the time being. 
+													</td>
+													<td>open</td>
+												</tr>
+												<tr>
+													<td>Takeoff denied in HITL Simulation with Gazebo</td>
+													<td>https://github.com/PX4/PX4-Autopilot/issues/14721</td>
+													<td>**Describe the bug**
+When running a HITL setup with Gazebo, I can arm (the rotors in Gazebo start spinning) but I cannot takeoff. QGC's error message is only "Takeoff command temporarily rejected". In the log it says "Critical: Takeoff denied! Please disarm and retry". Doing so leads to the same result.
+A SITL setup with Gazebo works fine. Using JMavSim in a HITL setup works perfectly, too.
+One difference I have noticed when comparing my error scenario to the two that work: QGC says the value of Alt (Rel) is NaN (or --.-- on the HUD).
+
+**To Reproduce**
+Steps to reproduce the behavior:
+1. Install the development toolchain according to the [Toolchain Installation](https://dev.px4.io/v1.9.0/en/setup/dev_env.html).
+2. Follow the [instructions for setting up a HITL simulation](https://dev.px4.io/v1.9.0/en/simulation/hitl.html) with Gazebo.
+    a) In step 4 of the Simulation Setup for Gazebo I use `/dev/tty.usbmodem01` on my MacBook Pro. On an iMac I've had to use `/dev/tty.usbmodem1`.
+    b) In a recent commit the iris world was removed, so instead of running Gazebo as in step 5 of the Gazebo Setup section, I've had to run `make px4_sitl gazebo` again to achieve the same result. I have already had the described problem before this change was made.
+3. After starting QGC in step 6 of the instructions for the Gazebo Setup, arm the drone and select Takeoff in QGC.
+
+**Expected behavior**
+The drone should takeoff without errors and I should be able to see that it does so in the Gazebo client.
+
+**Log Files and Screenshots**
+Flight log file: [Log file link](https://review.px4.io/plot_app?log=629eabe0-cfbb-4cd8-ad61-29d150175b0f)
+
+**Drone:**
+I am using an FMUK66 board by NXP.
+
+**Additional context**
+I am running macOS 10.15.4.
+</td>
+													<td>open</td>
+												</tr>
+												<tr>
+													<td>Altitude hold not working with GPS as primary height source and GPS blending enabled</td>
+													<td>https://github.com/PX4/PX4-Autopilot/issues/14267</td><td>Autopilot= Pixhawk 4
+Firmware= Branch based on v1.10
+
+**Describe the bug**
+Altitude hold not working when GPS is the primary height source and we are blending two different GPS modules (one is ublox and one ashtech).
+
+
+**To Reproduce**
+Steps to reproduce the behavior:
+1) Set the primary height mode to GPS (EKF2_HGT_MODE=1)
+2) Enabled GPS blending (EKF2_GPS_MASK=3)
+3) Takeoff to about 1 meter. --> the drone started going down. I started counteracting with the sticks but it was still going down. 
+
+
+**Log Files and Screenshots**
+Blending enabled but baro as primary height source (this works fine): https://review.px4.io/plot_app?log=1da0b48b-deed-4963-8efa-e3a646b20018
+
+Blending enabled and gps as primary height source (issue) - log1: https://review.px4.io/plot_app?log=2c5ab2b2-38a4-4d37-ad4c-e2bb3e564966
+
+Blending enabled and gps as primary height source (issue) -log2: https://review.px4.io/plot_app?log=c65eae25-6f75-4583-849f-11567e01d231
+</td>
+												<td>open</td>
+											</tr>
+											<tr>
+												<td>Runway takeoff not tracking</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/14262</td>
+												<td>Runway takeoff (on fixed wing with the nose gear on its own channel) is not tracking. It immediately veers off to the right substantially taking it off the runway. 
+
+3 logs of this with one log having large gains and unlimited travel for good measure on the wheel controller.
+
+To further test this we took another aircraft in a different location and recreated. That log is not attached but it obeyed in the identical way.
+
+There is more than enough wheel authority, no errors, mag issues, etc so understanding the lack of tracking and any mission start yields to veering off to the right would be important to understand.
+
+https://review.px4.io/plot_app?log=d7858c28-bb1f-49df-9df5-c8fd04755a80
+(vibration only because it was taken at high speed off the runway)
+
+https://review.px4.io/plot_app?log=0d6e9b1f-1d37-43fb-a673-c19de0298fac
+(Immediate right upon initiating the mission - only look at the mission portion of the log)
+
+https://review.px4.io/plot_app?log=65c49e9f-61a4-4a75-8813-4ce66160a4c4
+(Immediate right upon initiating the mission - only look at the mission portion of the log but with larger wheel rate gains for good measure.)
+
+
+It would seem like something is wrong for it to always want to go hard right first. Is this a bug or something that simply now needs to be re-tuned so there is a much more subdued effect on the WR controller's abilities? I just find it strange since this did occur occasionally over the years but not every time which is happening now. 
+
+
+Firmware: 1.9.2
+Pixhawk with 2mb of flash</td>
+												<td>open</td>
+											</tr>
+											<tr>
+												<td>Failsafe for position loss in Offboard mode</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/14076</td>
+												<td>**Describe the bug**
+When a position loss event occurs while in Offboard mode (which requires a valid position estimate), the vehicle performs a blind land failsafe, despite the fact that COM_POSCTL_NAVL is configured to "Assume R/C, switch to altitude mode..." and there is a remote control.
+
+**To Reproduce**
+Stream VISION_POSITION_ESTIMATE mavlink messages to simulated Iris copter (in Gazebo), switch to offboard and fly to a waypoint (via SET_POSITION_TARGET_LOCAL_NED message). While the drone is flying to the waypoint, stop sending VISION_POSITION_ESTIMATE messages.
+
+**Expected behavior**
+I would have expected that the failsafe obeys the COM_POSCTL_NAVL parameter and switches to Altitude mode (hight estimation was valid due to barometer). I also tried the same thing in Position mode and there it actually does switch to Altitude mode as expected.
+
+**Log Files and Screenshots**
+https://review.px4.io/plot_app?log=62c8308a-bd4d-4185-8db9-1e45d6e9efa0
+INFO  [ecl/EKF] 36996000: EKF commencing external vision position fusion
+INFO  [ecl/EKF] 36996000: EKF commencing external vision yaw fusion
+WARN  [ecl/EKF] 75820000: EKF ev hgt timeout - reset to baro
+WARN  [mc_pos_control] Position-Control Setpoint-Update failed
+WARN  [mc_pos_control] Failsafe: blind land
+INFO  [ecl/EKF] 77532000: EKF External Vision Data Stopped
+WARN  [ecl/EKF] 77540000: EKF stopping navigation
+
+For comparison, this is the output when flying in Position-mode:
+INFO  [ecl/EKF] 533328000: EKF commencing external vision position fusion
+INFO  [ecl/EKF] 533328000: EKF commencing external vision yaw fusion
+WARN  [commander] Failsafe enabled: no local position
+WARN  [ecl/EKF] 560472000: EKF ev hgt timeout - reset to baro
+INFO  [ecl/EKF] 562184000: EKF External Vision Data Stopped
+WARN  [ecl/EKF] 562192000: EKF stopping navigation
+
+**Drone (please complete the following information):**
+Iris in Sitl Gazebo, with PX4 1.10.0
+</td>
+												<td>open</td>
+											</tr>
+											<tr>
+												<td>Large negative Pitch Setpoint at takeoff, hand launched Fixed Wing</td>
+												<td>https://github.com/PX4/PX4-Autopilot/issues/10076</td>
+												<td>Most of our fixed wing flight logs show a large negative step input to the pitch command right at Takeoff.  I think the "minimum pitch" param in the Takeoff Waypoint overrides this, but behind the scenes something is wrong.
+
+I've seen users attempt to auto-takeoff to a non-Takeoff Waypoint and the vehicle immediately noses into the ground.
+
+I suspect some bad interactions between LandDetector and typical ground handling of hand launched fixed wings, but I'm not sure what exactly...  (fyi @dagar we discussed previously).
+
+![image](https://user-images.githubusercontent.com/12117027/43370412-3c14b920-9344-11e8-8599-5b2aa06673f4.png)
+
+Here are a number of logs that show this issue right at Takeoff:
+https://review.px4.io/plot_app?log=80301c1d-fac9-4a8a-a5e1-870927233e64
+https://review.px4.io/plot_app?log=6f7119a2-c6c3-4d0c-88e5-8debcf59e88f
+https://review.px4.io/plot_app?log=a8b193bc-f3d7-4cab-ae3e-ba0302c1834b
+https://review.px4.io/plot_app?log=13dcbb27-7d97-49d4-94d3-0f092d283c7c
+
+Related PR that attempts to improve Fixed Wing takeoff, might need to look into the root cause of this issue here:
+https://github.com/PX4/Firmware/pull/9243</td>
+												<td>open</td>
+											</tr>
+											<tr>
+												<td></td>
+												<td>&nbsp</td>
+												<td>&nbsp</td>
+												<td>&nbsp</td>
+											</tr>
+										</tbody>
+									</table>
+								</body>
+							</html>

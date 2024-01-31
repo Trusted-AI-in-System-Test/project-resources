@@ -28,7 +28,7 @@ for (( i = 1; i < 29; i++ )); do
 	cat bugs$i.json >> bugsCombo.json
 done
 
-# JQ used here to pull all issues with flight logs
-cat bugsCombo.json | jq 'sort_by(.state) | map(select(.body? // "" | contains("review.px4"))) | .[] | {title, html_url, body, state, pull_request: .merged_at}' >> bugWithLogs.json
+# JQ used here to pull all issues with logs from BOTH review.px4.io and log.px4.io
+cat bugsCombo.json | jq 'sort_by(.state) | map(select(.body? // "" | contains("review.px4.io") or contains("logs.px4.io"))) | .[] | {title, html_url, body, state, pull_request}' >> bugWithLogs.json
 
 # Manual sorting of the data was used from here... https://codebeautify.org/jsonviewer and the like helped :) 

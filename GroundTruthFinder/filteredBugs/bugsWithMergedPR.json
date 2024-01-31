@@ -1,0 +1,535 @@
+[
+  {
+    "title": "PositionSmoothing: fix corner altitude bug",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/22331",
+    "body": "### Solved Problem\r\nWe got multiple reports that the altitude profile between two waypoints is not a diagonal line but changes altitude much quicker when leaving the previous waypoint and getting much flatter after that.\r\n\r\nDuring a round corner the L1 distance calculation\r\nwas only done in 2D and the z-axis coordinate\r\nwas directly coming from the next waypoint.\r\nThis lead to an unpredictable altitude profile\r\nbetween two waypoints. Sometimes almost all\r\naltitude difference was already covered during\r\nthe turn instead of going diagonally.\r\n\r\nFixes #{Github issue ID}\r\n\r\n### Solution\r\n- Make the entire L1 distance and intersection calculation 3D\r\n- Refactor ...\r\n\r\n### Changelog Entry\r\n```\r\nBugfix: Multicopter altitude change sometimes not linear between two waypoints\r\n```\r\n\r\n### Test coverage\r\nSimulation testing procedure:\r\n\r\n1. Command to test: `PX4_SIM_SPEED_FACTOR=100 make px4_sitl jmavsim`\r\n1. [Load plan file](https://docs.qgroundcontrol.com/master/en/PlanView/PlanView.html#file) for jMAVsim location through QGC: [rounded_altitude_change.plan](https://github.com/PX4/PX4-Autopilot/files/13283004/rounded_altitude_change.plan.txt)\r\n\r\nI still need to verify the 2D only case with no valid altitude works as expected.\r\n\r\n### Context\r\nBefore: https://logs.px4.io/3d?log=45c8f43e-32e7-4c7f-ab30-975e1c8aa32b\r\n![image](https://github.com/PX4/PX4-Autopilot/assets/4668506/d7da8173-9016-48f8-ada5-49fb1e6c2d25)\r\nAfter: https://logs.px4.io/3d?log=17dd1c3e-bd5e-46b0-abad-3bba6c517e2f\r\n![image](https://github.com/PX4/PX4-Autopilot/assets/4668506/e161ac7a-5966-4623-97f1-47192f13683c)\r\n\r\n",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/22331",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/22331",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/22331.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/22331.patch",
+      "merged_at": "2023-11-10T09:02:20Z"
+    }
+  },
+  {
+    "title": "EKF2: Only fuse fake yaw when really needed",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/20840",
+    "body": "<!--\r\n\r\nThank you for your contribution!\r\n\r\nGet early feedback through\r\n- Dronecode Discord: https://discord.gg/dronecode\r\n- PX4 Discuss: http://discuss.px4.io/\r\n- opening a draft pr and sharing the link\r\n\r\n-->\r\n\r\n### Solved Problem\r\nWhen not using a mag (e.g.: after yaw emergency or mag type \"none\"), a yaw error isn't properly corrected even in presence of a large acceleration an a GNSS observation.\r\n\r\n### Solution\r\nConstantly fusing a zero yaw innovation makes the filter too confident about its yaw estimate and doesn't correct itself anymore. The proposed solution is to only fuse a fake yaw measurement when the yaw variance of the estimator is too large (i.e.: larger than its initialization value).\r\n\r\nOther changes:\r\n- do not run the mag selection/reset/fusion logic when the mag is inhibited\r\n- stop the mag fusion when the mag is constantly inhibited, this prevents having the mag fusion flag set while the fusion is not occurring for a long time.\r\n\r\n### Test coverage\r\nSITL test: mag type none, takeoff in alt mode, move to init yaw. After a couple of seconds, change the gyro bias to 0.1 rad/s\r\n\r\nbefore:\r\nThe gyro bias takes time to estimate and during that time, the drone makes a violent toilet bowl spiral. It ends up stopping navigation and falls back to alt mode after 2 yaw resets.\r\nhttps://logs.px4.io/plot_app?log=9619a774-677a-43e3-96c7-6dc710d1828e\r\n![DeepinScreenshot_select-area_20221229172559](https://user-images.githubusercontent.com/14822839/209981336-b4934b10-fb4b-41fa-97a1-82944e3819eb.png)\r\n\r\nthis PR:\r\nhttps://logs.px4.io/plot_app?log=e8694d1e-8798-4734-89fb-fd7e663bdfd5\r\nThe gyro bias is learned rapidly and a slight toilet bowl is enough to correct the yaw estimate properly.\r\n![DeepinScreenshot_select-area_20221229170529](https://user-images.githubusercontent.com/14822839/209981905-c5c5cdc0-7109-42d3-aaf9-4b54d37d02a0.png)\r\n\r\n\r\n- unit tests for the mag inhibition\r\n\r\n",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/20840",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/20840",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/20840.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/20840.patch",
+      "merged_at": "2022-12-29T17:56:37Z"
+    }
+  },
+  {
+    "title": "ekf2: reinit baro height on sensor or calibration change",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/20818",
+    "body": " - handle reset on delayed time horizon\r\n - avoid unnecessary preflight failures due to initial primary baro change (eg external DroneCAN barometer starting later than internal)\r\n\r\nhttps://review.px4.io/plot_app?log=0afe68b4-721d-4827-bf18-57c8f267592d\r\n![Screenshot from 2022-12-21 17-19-25](https://user-images.githubusercontent.com/84712/209013340-60b324c5-f6e1-4b36-8bc8-920140f2d747.png)\r\n\r\n![Screenshot from 2022-12-21 17-20-40](https://user-images.githubusercontent.com/84712/209013494-fd681f7d-af88-458f-927c-49dd50fc9ac7.png)\r\n\r\n",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/20818",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/20818",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/20818.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/20818.patch",
+      "merged_at": "2022-12-29T21:37:34Z"
+    }
+  },
+  {
+    "title": "Fix invalid offboard setpoints for fw pos control",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/20669",
+    "body": "### Solved Problem\r\nThis commit fixes a regression that caused problems when trying to use offboard control with fixedwings (or VTOLs in fixedwing mode)\r\n\r\nThe problem was that all offboard setpoints were considered invalid in offboard mode:\r\n![image](https://user-images.githubusercontent.com/5248102/203829851-55e1195d-9498-44be-aa6e-1e67db5f7ae5.png)\r\n![image](https://user-images.githubusercontent.com/5248102/203829872-ccfb20a0-c004-4592-bbfe-f7160d51c7bd.png)\r\n\r\n### Solution\r\nThis was a regression introduced by https://github.com/PX4/PX4-Autopilot/pull/19942, where the valid flag in position_setpoint_triplet was no longer being used and the offboard logic was left out.\r\n\r\n### Test coverage\r\nTested in SITL Gazebo and publishing offboard setpoints\r\n- Flight logs before PR: https://review.px4.io/plot_app?log=b46b490c-69f8-4fe1-a47f-b16fc6ab8b54\r\n- Flight logs after PR: https://review.px4.io/plot_app?log=ced912ac-1b8d-427e-8829-90337d208482\r\n",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/20669",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/20669",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/20669.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/20669.patch",
+      "merged_at": "2022-11-30T08:14:58Z"
+    }
+  },
+  {
+    "title": "Navigator: fix init of _mission_item, plus add guards for using mision_item.loiter_radius",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/20464",
+    "body": "\r\n## Describe problem solved by this pull request\r\nThis is to address what was reported here: https://github.com/PX4/PX4-Autopilot/pull/19928#issuecomment-1277934841\r\n\r\nWhat I think was going on:\r\n- RTL triggered a couple of times, and each time it was above the return altitude, so didn’t have to climb. In the v1.13 RTL logic, as pointed out [here](https://github.com/PX4/PX4-Autopilot/pull/19928#issuecomment-1284454859), the mission_item.loiter_radius field wasn't filled, and it just kept using it as initialized. \r\n- The initialization happens in the constructor, and it initializes it to `_navigator->get_loiter_radius()`, which itself just gets the value of `_param_nav_loiter_rad`. At this moment, the params are though not yet fetched (happens [here](https://github.com/PX4/PX4-Autopilot/blob/c267cf71c3aa57fbbe544d02f3b25650f029384d/src/modules/navigator/navigator_main.cpp#L151))\r\n- in the [flight](https://review.px4.io/plot_app?log=4a466655-3c02-4f78-ab9e-1d90bca4b8e3) linked in the above mentioned issue , the initialisation value of it seems to have been 3.9e32, which was then passed through to the `position_setpoint_current.loiter_radius` (there is only a check for if(>0)), and the vehicle started on it's voyage around the solar system\r\n\r\n\r\n![image](https://user-images.githubusercontent.com/26798987/197223431-d4a5a3c5-33ee-4655-8974-32d73cfc8abb.png)\r\n\r\n\r\n## Describe your solution\r\nOn current main we by accident fixed this particular issue already,[ as we explicitly set the loiter_radius](https://github.com/PX4/PX4-Autopilot/blob/ed558e199faab703ea3fb352db16512981fdb7ec/src/modules/navigator/rtl.cpp#L407) in every state of the RTL state machine. This wasn't the case in v1.13, but I guess we should back port it.\r\nAdditionally we should change the initialization of mission_item. I propose here to initialize to 0, which is considered as \"invalid\" before and not used in then (checks for ISFINITE and >FLT_EPS). \r\nI did the same for mission_item.acceptance_radius. \r\n\r\n## Describe possible alternatives\r\n- do we have a way to update the params before the constructor is called?\r\n- should we initialize `mission_item` fields consistently to NAN instead of some to NAN (currently yaw, lat, lon), and some to 0, and some not at all (e.g. altitude). And is this initialization in the constructor even needed?\r\n\r\n",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/20464",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/20464",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/20464.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/20464.patch",
+      "merged_at": "2022-10-27T08:28:05Z"
+    }
+  },
+  {
+    "title": "Fix busy loop in gps module when using RTCM",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/19906",
+    "body": "Please use [PX4 Discuss](http://discuss.px4.io/) or [Slack](http://slack.px4.io/) to align on pull requests if necessary. You can then open draft pull requests to get early feedback.\r\n\r\n## Describe problem solved by this pull request\r\nRTCM data message length was increased to 300 bytes without changing data type of integer holding the length.\r\nThis caused an overflow which lead to a busy loop in the gps driver.\r\n\r\n## Describe your solution\r\nUse a uint16.\r\n\r\n## Describe possible alternatives\r\nA clear and concise description of alternative solutions or features you've considered.\r\n\r\n## Test data / coverage\r\nHow was it tested? What cases were covered? Logs uploaded to https://review.px4.io/ and screenshots of the important plot parts.\r\n\r\n## Additional context\r\nAdd any other related context or media.\r\n",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/19906",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/19906",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/19906.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/19906.patch",
+      "merged_at": "2022-07-13T05:49:47Z"
+    }
+  },
+  {
+    "title": "Enable offboard actuator setpoints",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/18581",
+    "body": "**Describe problem solved by this pull request**\r\nSending actuator setpoints directly from a onboard computer provides a useful way to execute open loop manuevers which is useful for system identification.\r\n\r\nWhile previous to https://github.com/PX4/PX4-Autopilot/pull/16739  it was possible to send actuator commands using the `https://mavlink.io/en/messages/common.html#SET_ACTUATOR_CONTROL_TARGET` mavlink message, this is no longer working since it is not understood as a valid offboard mode.\r\n\r\n**Describe your solution**\r\nThis commit adds a case for adding offboard actuator commands in the offboard mode\r\n\r\n**Test data / coverage**\r\nTested with Gazebo SITL no lockstep target\r\n```\r\nmake px4_sitl_nolockstep gazebo\r\n```\r\n\r\nAs can be observed in the log, actuator setpoint to elevator (output 7) is increased as a ramp function\r\nFlight log: https://logs.px4.io/plot_app?log=15a16288-d153-467e-8ab2-9303bb855d35\r\n\r\n\r\n**Additional context**\r\n- This is fixes a regression from https://github.com/PX4/PX4-Autopilot/pull/16739 ",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/18581",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/18581",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/18581.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/18581.patch",
+      "merged_at": "2021-11-07T20:38:42Z"
+    }
+  },
+  {
+    "title": "Handle setpoint types properly in fw position controller",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/18578",
+    "body": "**Describe problem solved by this pull request**\r\nFixes https://github.com/PX4/PX4-Autopilot/issues/18576\r\n\r\nWhile the FW position controller mode was changing, the throttle was not changing accordingly\r\n\r\nThis seems to be a regression introduced by https://github.com/PX4/PX4-Autopilot/pull/18340\r\n\r\n**Test data / coverage**\r\n- Before PR: https://logs.px4.io/plot_app?log=4f360063-83eb-43bd-81f1-0749f89a9e4e\r\n- After PR: https://logs.px4.io/plot_app?log=15f471bd-2a86-4855-9206-ce111cd0b393\r\n\r\n",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/18578",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/18578",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/18578.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/18578.patch",
+      "merged_at": "2021-11-08T00:21:00Z"
+    }
+  },
+  {
+    "title": "ekf: force fallback to baro if GPS is stopped while in GPS height mode",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/18458",
+    "body": "Otherwise, no height aiding source is used.\r\n\r\nfixes https://px4.slack.com/archives/C0V533X4N/p1634539666104800\r\nlog with issue: https://review.px4.io/plot_app?log=56a6fb8b-b804-4a50-974b-3f88d04c2cbe",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/18458",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/18458",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/18458.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/18458.patch",
+      "merged_at": "2021-10-26T08:05:29Z"
+    }
+  },
+  {
+    "title": "VTOL Fix back transition devaitions",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/18350",
+    "body": "**Describe problem solved by this pull request**\r\nI found a bug with back transitions that was introduced with I think https://github.com/PX4/PX4-Autopilot/pull/16499. \r\n\r\nIf you set the next WP after the back transition to a different altitude the drone can enter a \"spiralling down\" mode (set here: https://github.com/PX4/PX4-Autopilot/blob/master/src/modules/fw_pos_control_l1/FixedwingPositionControl.cpp#L842-L850). This can lead to unexpected deviations during back transitions. And as the altitude is ultimately controlled (fix) by the MC module the spiralling down doesn't actually spiral down anyway... Also note that if you have a small value on FW_CLMBOUT_DIFF you can be affected even when the next WP is at the same altitude if the drone gets a lot of altitude during back transition due to pitching up.\r\n\r\n**Describe your solution**\r\nDeactivate the loitering logic during transitions. \r\n\r\n**Describe possible alternatives**\r\n\\-\r\n\r\n**Test data / coverage**\r\nFound on two different real quadplanes, and I was able to reproduce it on SITL.\r\n\r\nReal flight on v1.12.1: https://logs.px4.io/plot_app?log=2f6a1c96-eabb-4576-abb1-a99b716f6c67\r\n\r\nSITL tests with attached mission file [test BT deviations.zip](https://github.com/PX4/PX4-Autopilot/files/7279541/test.BT.deviations.zip):\r\n\r\nmaster, FW_AIRSPD_TRIM = 19, FW_L1_PERIOD = 25 and NAV_LOITER_RAD = 50: https://logs.px4.io/plot_app?log=79cadeb1-27bc-4c4c-88c4-7ded26c0a430\r\n\r\nmaster, default parameters: https://logs.px4.io/plot_app?log=6c1b368b-a435-4868-a856-159d68da926c\r\nInterestingly there is no deviation even though the logic still triggers. I don't understand why the deviation doesn't happen on default parameters, must be something particular with the FW loitering logic. Check `position_controller_status.type`, it goes to 2, showing that the loitering logic is triggered.\r\n\r\nThis PR: https://logs.px4.io/plot_app?log=ef558a1a-2c2c-461f-a781-645a3ad2e121 \r\n`position_controller_status.type` = 0 throughout, no deviation.\r\n\r\n**Additional context**\r\nUnfortunately _not_ linked to https://github.com/PX4/PX4-Autopilot/issues/18240",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/18350",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/18350",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/18350.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/18350.patch",
+      "merged_at": "2021-10-05T12:40:14Z"
+    }
+  },
+  {
+    "title": "Fix srf05 driver.",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/18262",
+    "body": "Please use [PX4 Discuss](http://discuss.px4.io/) or [Slack](http://slack.px4.io/) to align on pull requests if necessary. You can then open draft pull requests to get early feedback.\r\n\r\n**Describe problem solved by this pull request**\r\nA clear and concise description of the problem this proposed change will solve.\r\nE.g. For this use case I ran into...\r\n\r\n**Describe your solution**\r\nA clear and concise description of what you have implemented.\r\n\r\n**Describe possible alternatives**\r\nA clear and concise description of alternative solutions or features you've considered.\r\n\r\n**Test data / coverage**\r\nHow was it tested? What cases were covered? Logs uploaded to https://review.px4.io/ and screenshots of the important plot parts.\r\n\r\n**Additional context**\r\nAdd any other related context or media.\r\n",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/18262",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/18262",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/18262.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/18262.patch",
+      "merged_at": "2021-10-19T01:00:59Z"
+    }
+  },
+  {
+    "title": "Fix flaps being deployed in manual flight modes for fixedwing",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/18035",
+    "body": "**Describe problem solved by this pull request**\r\nFor fixedwings, there were different flap scalings deployed between auto modes and manual flight modes, resulting in the flaps always being deployed halfway in manual flight modes.\r\n\r\n- In manual flight modes(stabilized, manual), zero flap input was mapped to flap command 0.5\r\n- In auto modes(mission, hold), zero flap command was mapped to flap command 0.0\r\n\r\n**Describe your solution**\r\nThis PR removes the special scaling in manual flight modes, so that the flap does not get deployed when switching fixed wing aircraft between manual and auto modes.\r\n\r\nThis should not influence flaps being deployed in auto modes.\r\n\r\n**Describe possible alternatives**\r\nBy removing the scaling, we are assuming that flap commands range from [-1, 1]. This makes more sense since the mixers actually allow you to give -1 flap commands. If we want to prevent this behavior, IMO we need to add an explicit mode for it rather than secretly scaling this inside the attitude controller.\r\n\r\n**Test data / coverage**\r\nTested by flying a plane model in Gazebo SITL\r\n```\r\nmake px4_sitl gazebo_plane\r\n```\r\nFlown using a virtual joystick on QGroundControl. Note that the flap channels getting deployed in manual flight modes\r\n\r\n- Before PR: https://logs.px4.io/plot_app?log=e5f35769-c0fa-4585-aab8-6478d50041aa\r\n![bokeh_plot (1)](https://user-images.githubusercontent.com/5248102/128637127-af367e33-2924-483b-a426-e04bb21c537f.png)\r\n\r\n\r\n- After PR: https://logs.px4.io/plot_app?log=df16c2cb-1d7e-4733-9269-ff9003b0d3b9\r\n![bokeh_plot](https://user-images.githubusercontent.com/5248102/128637045-9cc9ced2-6fdd-4a0e-87d4-39e28f9b3e30.png)\r\n\r\n**Additional context**\r\n- This was not apparent before there were flaps in the SITL plane model, but this is more visible after it has been added.\r\n",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/18035",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/18035",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/18035.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/18035.patch",
+      "merged_at": "2021-08-13T13:46:23Z"
+    }
+  },
+  {
+    "title": "Fix bug in external Quadchute trigger (from PR 16691)",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/17695",
+    "body": "Fixes a bug introduced with https://github.com/PX4/PX4-Autopilot/pull/16691. (@dagar @sfuhrer @RomanBapst )\r\n\r\n**Describe problem solved by this pull request**\r\nEli Vigdorchik ran into an undesired external quadchute during one of his test flights as reported on slack (https://px4.slack.com/archives/C39C4E709/p1622652580039900). Log here: https://review.px4.io/plot_app?log=26c65922-793b-4bad-88fa-86f58b97eb82 . For some reason Param2 of the command is set to 3, triggering the Quadchute instead of doing a normal back transition during RTL. I was able to reproduce in SITL on v1.12.0-beta and on master. I guess the issue is a badly initialized / old value of param2 floating around somewhere.\r\nhttps://logs.px4.io/plot_app?log=efaae0f0-a8a8-494c-b32d-6e041689836f\r\nhttps://logs.px4.io/plot_app?log=e177614d-a4c1-4ebf-97ca-6ed6fb8cf420\r\n\r\n**Describe your solution**\r\nExplicitly set Param2 to 0.0f in all occurrences where a normal BT is desired (I searched for all occurrences of *DO_VTOL_TRANSITION in the code).\r\n\r\nI also added a check on NANs. If param2 is a NAN, then _immediate_transition is false too.\r\n\r\n**Describe possible alternatives**\r\n- \r\n\r\n**Test data / coverage**\r\nSame procedure, i.e. Position mode flight with RTL triggered over QGC:\r\nhttps://logs.px4.io/plot_app?log=7cc61dad-7145-4e81-9ee3-f7c84dd04ef9\r\n\r\nI also tried manual transitions, transitions over QGC, missions with VTOL Land and normal Land items, `commander transition` and switching to Land mode via QGC. I couldn't provoke any external quadchutes. Did I miss another option to get into back transition?\r\n\r\n**Additional context**\r\nFollow up of https://github.com/PX4/PX4-Autopilot/pull/16691\r\n",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/17695",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/17695",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/17695.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/17695.patch",
+      "merged_at": "2021-06-21T20:39:55Z"
+    }
+  },
+  {
+    "title": "flashparams: Fix a null-pointer dereference crash",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/17385",
+    "body": "Fix a potential crash caused by calling erase_sector with a null\r\nsector_descriptor (current_sector == 0).\r\n\r\nSigned-off-by: Jukka Laitinen <jukkax@ssrc.tii.ae>\r\n\r\nPlease use [PX4 Discuss](http://discuss.px4.io/) or [Slack](http://slack.px4.io/) to align on pull requests if necessary. You can then open draft pull requests to get early feedback.\r\n\r\n**Describe problem solved by this pull request**\r\nA clear and concise description of the problem this proposed change will solve.\r\nE.g. For this use case I ran into...\r\n\r\n**Describe your solution**\r\nA clear and concise description of what you have implemented.\r\n\r\n**Describe possible alternatives**\r\nA clear and concise description of alternative solutions or features you've considered.\r\n\r\n**Test data / coverage**\r\nHow was it tested? What cases were covered? Logs uploaded to https://review.px4.io/ and screenshots of the important plot parts.\r\n\r\n**Additional context**\r\nAdd any other related context or media.\r\n",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/17385",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/17385",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/17385.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/17385.patch",
+      "merged_at": "2021-04-14T14:55:34Z"
+    }
+  },
+  {
+    "title": "vtol_att_control: occasional tailsitter forward transition failure",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/17310",
+    "body": "\r\nTailsitter VTOLs very occasionally gets stuck with zero roll and pitch angle in multicopter mode after\r\na forward transition command is issued.\r\n\r\nLog files with the transition failure:\r\nhttps://logs.px4.io/plot_app?log=d3c74285-5ae5-430d-a1bd-1b4e6de13938\r\nhttps://review.px4.io/plot_app?log=8d86e43c-5570-4480-9123-7e25669c5463\r\n\r\nIn the above logs you can see the pitch and roll sp set to zero during the forward transition. \r\n\r\nThis very rare behavior is triggered by the following events:\r\n1> a forward transition is triggered either in auto or manual mode.\r\n2> in the vtol_att_control main loop, if multicopter and fixed wing attitude setpoints are not updated, transition state is not updated\r\n3> the commander changes the vehicle status to transition mode.\r\n4> multicopter pos controller initiated  Transition flight task. This results in zero roll and pitch setpoint due to zero acceleration setpoint\r\n5> now vtol_att_control executes and updates the transition state. Specifically, _q_trans_start and _q_trans_sp are set with zero roll and pitch sp\r\n6> tilt is evaluated to be NaN, despite _q_trans_sp being normalized. This happens for 25% of all yaw angles when using float datatype. This can be\r\n   verified using the matrix library\r\n7> once tilt is evaluated to be NaN, _q_trans_sp is never updated again and is stuck in this state for ever.\r\n\r\nThis has been fixed by constraining the cos(tilt) within +1 to -1 range\r\nFurther, _q_trans_start and _q_trans_sp are immedietly initialized after a transition event is triggered.\r\n\r\n\r\n",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/17310",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/17310",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/17310.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/17310.patch",
+      "merged_at": "2021-04-03T17:19:48Z"
+    }
+  },
+  {
+    "title": "mc_pos_control: add OFFBOARD takeoff intent",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/17042",
+    "body": "OFFBOARD CI tests are failing on landing due to the takeoff state machine reactivating immediately on landing because OFFBOARD is always setting want_takeoff = true.\r\n\r\nThis change attempts to capture the takeoff intent in an OFFBOARD (trajectory) setpoint.\r\n\r\nExample failure log - https://logs.px4.io/plot_app?log=775688d0-faee-4f31-bb9b-1772ea0b1d9e",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/17042",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/17042",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/17042.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/17042.patch",
+      "merged_at": "2021-03-07T10:04:17Z"
+    }
+  },
+  {
+    "title": "land_detector: continue respecting hover thrust throughout descent",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/17041",
+    "body": "The hover thrust estimate becomes invalid on final descent, which can disrupt the land detector ground contact logic if MPC_THR_HOVER is sufficiently wrong.\r\n\r\nhttps://logs.px4.io/plot_app?log=3b44224e-4cca-42ad-a1dc-db2acff4f324\r\n\r\n<img width=\"864\" alt=\"Screen Shot 2021-03-06 at 10 21 05 PM\" src=\"https://user-images.githubusercontent.com/84712/110227839-43262900-7eca-11eb-8e12-e17f5736a4ec.png\">\r\n\r\n<img width=\"1366\" alt=\"Screen Shot 2021-03-06 at 10 22 23 PM\" src=\"https://user-images.githubusercontent.com/84712/110227854-723c9a80-7eca-11eb-9557-c5d1c2b87569.png\">\r\n",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/17041",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/17041",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/17041.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/17041.patch",
+      "merged_at": "2021-03-08T10:33:37Z"
+    }
+  },
+  {
+    "title": "Handle takeoff waypoints for rover",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/16297",
+    "body": "**Describe problem solved by this pull request**\r\nPreviously, rover vehicles were not able to handle Takeoff waypoints. The behavior when a takeoff waypoint was passed to a rover vehicle was:\r\n- The vehicle would not move since the waypoint was too close\r\n- The takeoff waypoint would not get accepted since rovers are not able to climb and reach the altitude\r\n\r\nI think it might be obvious that one \"should not\" pass takeoff waypoints to a vehicle. However, QGroundControl only lets you plan a mission that starts with a takeoff waypoint. While this should also be an improvement on the QGC side, I think it is still useful to handle this case on the vehicle side so that the vehicle can still progress with the mission even with a takeoff waypoint\r\n\r\n**Describe your solution**\r\nThis adds a special case when handling takeoff waypoints for rover vehicles. The acceptance radius is set to only consider horizontal distance to the waypoint, if the vehicle type is rover.\r\n\r\n**Test data / coverage**\r\n- This was tested in SITL gazebo, with the rover model.\r\n```\r\nmake px4_sitl gazebo_rover\r\n```\r\nThis log shows a full mission successfully finished starting with a Takeoff waypoint and finished with a RTL: https://review.px4.io/plot_app?log=25fe983b-44d0-4a11-a7c2-2ab9662c35d4\r\n",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/16297",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/16297",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/16297.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/16297.patch",
+      "merged_at": "2020-11-28T23:08:54Z"
+    }
+  },
+  {
+    "title": "Increase uavcan main stack size",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/15864",
+    "body": "**Describe problem solved by this pull request**\r\nI observed hard faults when running `uavcan params list`. A stackcheck build showed that the `uavcan` task overflowed its stack.\r\n\r\n**Describe your solution**\r\nI increased the stack size for the `uavcan` command\r\n\r\n**Describe possible alternatives**\r\nNone\r\n\r\n**Test data / coverage**\r\nIncreasing stack size shouldn't cause any issues, but for what it's worth I have flown with this commit\r\nhttps://review.px4.io/plot_app?log=d0f658d7-60ab-40ae-b4e2-a32aae84d942\r\n",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/15864",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/15864",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/15864.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/15864.patch",
+      "merged_at": "2020-10-02T05:31:28Z"
+    }
+  },
+  {
+    "title": "multicopter land detector ground contact fixes",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/15083",
+    "body": "Opening this for discussion/testing of possible fixes for https://github.com/PX4/Firmware/issues/13124, https://github.com/PX4/Firmware/issues/11683, https://github.com/PX4/Firmware/issues/13507.\r\n\r\nhttps://logs.px4.io/plot_app?log=4b65cf44-80cb-4910-bc2a-151028afe9da",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/15083",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/15083",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/15083.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/15083.patch",
+      "merged_at": "2020-08-02T17:37:24Z"
+    }
+  },
+  {
+    "title": "[VTOL] impose minimum transition duration",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/15080",
+    "body": "**Describe problem solved by this pull request**\r\nBefore this PR, VT_F_TR_OL_TM would silently reduce VT_TRANS_MIN_TM when VT_F_TR_OL_TM was smaller. This almost caused a crash on our quadplane because the (non-airspeed) transition was considered finished way too early. The drone lost 45m of altitude before the quadchute could stabilise it (luckily we transitioned at 50m altitude). \r\n\r\n**Describe your solution**\r\nIncrease the open loop transition duration if it is smaller than the minimum transition duration and notify the user.\r\n\r\n**Test data / coverage**\r\ngazebo standard vtol: Log showing logged messages and imposed 10s front transition: https://logs.px4.io/plot_app?log=4204093e-ffbc-4c4a-b029-21cf52a55c17\r\n",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/15080",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/15080",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/15080.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/15080.patch",
+      "merged_at": "2020-07-03T17:19:03Z"
+    }
+  },
+  {
+    "title": "Gyro filtering: apply IMU_GYRO_CUTOFF also to D-term",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/15018",
+    "body": "- flying master lately I noticed the D-term is considerably more suspectible to noise on different vehicles. Initially I attributed that to the removal of the on-chip DLPF.\r\n- trying to fly the Kopis 2 on master, it was just unflyable. And no matter how much PID and filter tuning I did, I could not get it to fly.\r\n\r\nI then made the filter change here, and it immediately improved things a lot (so apparently the ordering matters). With some further tuning it's flyable again.\r\n\r\nLog: https://logs.px4.io/plot_app?log=65497f73-7350-4965-aec1-5ccdce1c628c\r\n\r\n@dakejahl I'm pretty sure this helps on your S500 as well.\r\n\r\nSome feedback if other people experience the same would be appreciated.",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/15018",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/15018",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/15018.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/15018.patch",
+      "merged_at": "2020-06-05T00:58:41Z"
+    }
+  },
+  {
+    "title": "mc_pos_control: fix takeoff ramp gets amended by feed-forward",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/14821",
+    "body": "**Describe problem solved by this pull request**\r\nI found an issue with the takeoff ramp when real world testing https://github.com/PX4/Firmware/pull/14749 on the Holybro QAV250. But I found the issue is independent of that pr.\r\n\r\nThe thrust doesn't ramp nicely anymore like it was designed but depending on stick input can go up and down unexpectedly during the ramp up. This can lead to early land detection if the thrust goes up high enough and then back down because the ramp is not yet high enough.\r\n\r\nThe problem is: Because the takeoff ramp is a vertical velocity limit ramp for the nice user experience but the acceleration feed-forward can add on top of the output and depending on trajectory generation result in unwanted thrust changes during the ramp.\r\n\r\n**Describe your solution**\r\nI suppress the vertical acceleration feed-forward during the ramp.\r\n\r\n**Test data / coverage**\r\nIt's reproducable in SITL with the correct configuration:\r\n`MPC_TKO_RAMP_T` 5, `MPC_JERK_MAX` 20\r\n1. Switch to position mode\r\n2. Arm\r\n3. Fully rise the throttle stick\r\n\r\nBefore: https://review.px4.io/plot_app?log=ba57f51e-abaf-4990-ad34-64b3cef56d11\r\n![image](https://user-images.githubusercontent.com/4668506/80960930-27657880-8e0a-11ea-854d-0b59169d5c9a.png)\r\nAfter: https://review.px4.io/plot_app?log=532b6cdd-5101-4007-82b6-529b1491e85b\r\n![image](https://user-images.githubusercontent.com/4668506/80960966-3a784880-8e0a-11ea-8318-54b2023b1d2d.png)\r\n\r\n",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/14821",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/14821",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/14821.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/14821.patch",
+      "merged_at": "2020-05-04T14:10:37Z"
+    }
+  },
+  {
+    "title": "AutoSmoothVel: Fix straight line autocontinue",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/14476",
+    "body": "This fixes the issue that makes the drone slow-down even in straight lines due to the Z component being constrained to a really small value.\r\n\r\nWith master:\r\nhttps://logs.px4.io/plot_app?log=f7efacca-6262-4a65-b4e2-39c7e4f2f5bb\r\n![2020-03-25_14-34-27_01_plot](https://user-images.githubusercontent.com/14822839/77541925-b2676080-6ea5-11ea-83fa-9aac67a414f3.png)\r\n\r\nThis PR:\r\nhttps://logs.px4.io/plot_app?log=1692b126-f195-48c1-8150-2b1b499a900e\r\n![2020-03-25_14-30-07_01_plot](https://user-images.githubusercontent.com/14822839/77541555-19d0e080-6ea5-11ea-9117-020ddfb92836.png)\r\n\r\nThanks @jkflying for the help.\r\n",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/14476",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/14476",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/14476.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/14476.patch",
+      "merged_at": "2020-03-26T07:31:11Z"
+    }
+  },
+  {
+    "title": "navigator: do not use fixed wing acceptance radius if in rotary wing…",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/13693",
+    "body": "This is an attempt to fix an issue which can seen in this [log file](https://logs.px4.io/plot_app?log=47b2b562-bd40-4137-ae46-ef34d17d5f21)\r\nWhat happens is that the VTOL starts to descend after the back-transition prior to arriving at the actual waypoint. This can be very dangerous e.g. when the vehicle is pushed away from the land waypoint during the transition. It will then start to descend while moving toward the land waypoint.\r\nThe behavior should be that the vehicle keeps altitude until it has reached the landing waypoint.\r\n\r\nI have first reproduced this behavior on 1.9.2 but it only happened once in a while and appeared to be a race condition. I figured out that in some cases the navigator was using the acceptance radius from the fixed wing position controller in order to determine if the landing waypoint has been reached. This is a bug as the fixed wing acceptance radius can be very large and should not be used during hover.\r\nI believe this fix here solves the issue on 1.9.2.\r\n\r\nHowever, when testing the same fix on master I figured that there is a new problem in master.\r\nFor some reason the altitude setpoint of the position_setpoint_triplet.current is set to a very low value (6m) right at the start of the back-transition. This value is then further used as altitude setpoint during the horizonal movement during the landing waypoint. I'm not sure what causes this but the effect is again that the vehicle descends while moving towards the land waypoint. This needs further investigation.\r\n\r\nThis can easily be reproduced in SITL using the standard vtol model.\r\nI'm further uploading the mission file which can be used to reproduce the problem. You might need to change the file extension to .plan\r\n[vtol_mission.LOG](https://github.com/PX4/Firmware/files/3932587/vtol_mission.LOG)\r\n\r\n",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/13693",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/13693",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/13693.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/13693.patch",
+      "merged_at": "2019-12-24T17:52:11Z"
+    }
+  },
+  {
+    "title": "AutoLineSmoothVel: fix constrain priority for autocontinue.",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/13272",
+    "body": "The constrainAbs function was not prioritizing the minimum value that produces the autocontinue behavior. This caused zig-zag paths when the waypoints were almost -but not exactly- aligned.\r\n\r\nBefore this PR:\r\nhttps://logs.px4.io/plot_app?log=96749225-635d-4861-811c-53edc4fe03b0\r\n![bokeh_plot(27)](https://user-images.githubusercontent.com/14822839/67559392-27791300-f719-11e9-9a5c-c8002d2d0db2.png)\r\n\r\nAfter this PR:\r\nhttps://logs.px4.io/plot_app?log=74073a91-dccb-4624-96fc-de09e16bbb4f\r\n![bokeh_plot(28)](https://user-images.githubusercontent.com/14822839/67559398-2c3dc700-f719-11e9-9875-8d3e3a5b8f2f.png)\r\n\r\nFYI @mrivi \r\n\r\nI also made `const` the function that don't modify member variables and `static` the functions that don't use member variables.",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/13272",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/13272",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/13272.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/13272.patch",
+      "merged_at": "2019-10-26T06:34:31Z"
+    }
+  },
+  {
+    "title": "Multicopter mission guidance improvements",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/12905",
+    "body": "A recent modification (#12505 ) allows the drone to pass through a waypoint without completely stopping depending on the previous-current-next waypoints and the maximum centripetal acceleration. The implementation had visible corner cases when the path is parallel to the north or east axis as shown on the picture below:\r\n![bokeh_plot(23)](https://user-images.githubusercontent.com/14822839/64342552-0df5fd80-cfeb-11e9-90d4-f74d47ee66a3.png)\r\n(log: https://logs.px4.io/plot_app?log=d4a1d4ef-48ae-4e80-847c-ddd69d2d95dd )\r\nThe problem is that the velocity the drone is allowed to fly in a waypoint was directly applied to the norm of the velocity vector instead of each axis independently.\r\n\r\nThis PR fixes that behavior by applying properly the constraints to each component of the velocity vector:\r\n![bokeh_plot(24)](https://user-images.githubusercontent.com/14822839/64342728-6d540d80-cfeb-11e9-8358-ce9c826e25cb.png)\r\n(log: https://logs.px4.io/plot_app?log=85680273-9b06-44e7-b7a4-918b79581d05 )\r\n\r\n**Additional change** the signum function now compares the number against `FLT_EPSILON` instead of 0 in case of a floating point number. \r\n\r\nFYI @Stifael ",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/12905",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/12905",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/12905.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/12905.patch",
+      "merged_at": "2019-09-13T15:46:02Z"
+    }
+  },
+  {
+    "title": "VTOL GPSF: fix fixed bank loiter",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/12778",
+    "body": "Pull request fixing part of [#12758](https://github.com/PX4/Firmware/issues/12758)\n\n**Describe problem solved by the proposed pull request**\nFixed bank loiter after a No Global Position Failsafe wasn't working for VTOLs in FW mode. \n\n**Test data / coverage**\nTested in SITL `make px4_sitl gazebo_standard_vtol` by stopping `gpssim` driver. I also reactivated the `gpssim` driver to see if the vehicle recovers its position and continues its mission afterwards.\n\nLogs:\nWorking fixed bank loiter, late recovery:\nhttps://logs.px4.io/plot_app?log=217b432a-9452-4f67-862d-32322aaefe96\n\nWorking recovery:\nhttps://logs.px4.io/plot_app?log=b165d3ea-54cc-4145-aeb7-acf75892611e\n(running on an older commit head, but meanwhile it doesn't work anymore on this one, see this log: https://logs.px4.io/plot_app?log=2aad8195-476f-4af6-b289-c214e61fe853)\n\nGPSF is still working on normal planes : \nhttps://logs.px4.io/plot_app?log=79b5e483-f698-4aa0-8b30-265d25a3cd14\n\n**Describe your preferred solution**\nPublishing the failsafe values to `fw_virtual_attitude_setpoint` topic if the vehicle is a VTOL so that `VtolType::update_fw_state()` doesn't overwrite them with old values anymore.\n\n**Describe possible alternatives**\n\n**Additional context**\nThis PR does not fix the GPS recovery & continuing the automatic flight problems. \nAlso, the landing after \"Terminate\" is not working, the drone keeps loitering in fixed bank angle mode\n\n",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/12778",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/12778",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/12778.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/12778.patch",
+      "merged_at": "2019-10-16T15:57:44Z"
+    }
+  },
+  {
+    "title": "PositionControl: tiny minimal thrust length",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/11987",
+    "body": "**Describe problem solved by the proposed pull request**\r\nTo be able to still infer the direction of the thrust vector we limit it to a minimal length even if `MPC_THR_MIN` is set to zero. The parameter `MPC_THR_MIN` already needs to be forced to 0 so this is really an extreme corner case.\r\n\r\nNote: This is a hotfix for certain specific applications. The direction of the thrust vector in this corner case is very likely to get into the tilt limit which is generally undesired.\r\n\r\n**Test data / coverage**\r\nSITL tests:\r\n- **Without** a tiny minimal thrust added in this PR flying unsmoothed position control with `MPC_THR_MIN` set to 0 and demanding a downwards step which results in hard downwards acceleration:\r\nhttps://logs.px4.io/plot_app?log=4ef6a4cf-359e-4561-adbb-5a93387a981e\r\nthrust goes to (0,0,0) attitude roll and pitch go to level.\r\n![without](https://user-images.githubusercontent.com/4668506/57354740-931bf380-716c-11e9-9843-40bc3ef41749.PNG)\r\n\r\n- **With** a tiny minimal thrust added in this PR flying unsmoothed position control with `MPC_THR_MIN` set to 0 and demanding a downwards step:\r\nhttps://logs.px4.io/plot_app?log=58cae91c-5896-45ea-8e12-b45551d28250\r\nThe thrust keeps a minimum length and hence roll and pitch can still be infered.\r\n![with](https://user-images.githubusercontent.com/4668506/57357162-9a460000-7172-11e9-8c29-6c8c9348ac54.PNG)\r\n\r\n\r\n**Describe your preferred solution**\r\nIt's desirable to keep the attitude information in the thrust vector and therefore it should never be exactly (0,0,0).\r\n\r\n**Additional context**\r\nA remaining problem that existed before is that if e.g. to accelerate downwards very hard the thrust vector in z-axis direction gets zero (which means demanded idle thrust and hence almost freefall) the desired attitude should not tilt extremely just because the result of the velocity control is 90 degree tilt in the direction of the horizontal error.\r\n\r\nI disucussed with @bresch that it would makes sense to at least not demand the direction of the thrust vector to change faster than the maximal rate to rate controller will execute in the end. Otherwise we know beforehands it will result in a large unfeasible error.\r\n",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/11987",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/11987",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/11987.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/11987.patch",
+      "merged_at": "2019-05-08T08:08:46Z"
+    }
+  },
+  {
+    "title": "RTL - Skip descend state in \"Return then land immediately\" mode",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/11913",
+    "body": "**Describe problem solved by the proposed pull request**\r\nDuring RTL, some users (thanks @bkueng ) reported that the behavior of the drone during the RTL final descent is weird: it accelerates and decelerates several times instead of simply performing a \"land\".\r\nI discovered that this was caused by the intermediate waypoint placed by RTL between \"descend\" and \"land.\r\nThis PR simply adds a shortcut in the state machine to directly go to land mode and skip that waypoint if RTL is configured as \"Return home, then land immediately\".\r\n\r\n**Test data / coverage**\r\nSITL tests:\r\nWithout this PR: https://logs.px4.io/plot_app?log=42c21502-6212-4ca1-82b8-34798e02fca0\r\nAs seen in the graph below, the drone reaches down speed of 1m/s then slows down to reach the \"end of RTL descend\" then accelerate to reach down speed and reduces speed to reach a land speed of 0.7m/s.\r\n![bokeh_plot(16)](https://user-images.githubusercontent.com/14822839/56738049-0cc6e100-676c-11e9-9c58-940319da5f61.png)\r\n\r\nWith this PR: https://logs.px4.io/plot_app?log=cdbc8ad6-4ff8-4525-9e98-f1ce6ebe4e7d\r\nThe drone goes down at 1m/s until it reaches the \"low altitude\" where it reduces its speed to 0.7m/s, like it would do in a normal \"land\".\r\n![bokeh_plot(15)](https://user-images.githubusercontent.com/14822839/56738208-6af3c400-676c-11e9-9460-7daa32de09c9.png)\r\n\r\nOther modes:\r\n- Loiter and land: https://logs.px4.io/plot_app?log=88a29c37-8348-4abe-b9e1-48ab64ae8eae\r\n- Loiter and do **not** land: https://logs.px4.io/plot_app?log=45780f74-191d-42f8-af1d-25b28e84e892",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/11913",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/11913",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/11913.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/11913.patch",
+      "merged_at": "2019-04-25T16:24:05Z"
+    }
+  },
+  {
+    "title": "Pr fw att airspeed scaling",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/11897",
+    "body": "Replacement for #11883\r\n\r\n@dagar I removed the check for negative airspeed and also removed the slew rate on the airspeed scaling.\r\nI think normally we should not have the situation where the airspeed valid flag toggles between true and false so I don't quite see the point of the slew rate. Furthermore, the slew rate could have hidden this problem in the first place.\r\nI'm happy to discuss this if you feel strong about it.\r\n\r\nThis was thoroughly flight tested on a fixed wing.\r\nhttps://logs.px4.io/plot_app?log=4a46bce4-476c-411b-8b14-acc5b1f3f7bd\r\nhttps://logs.px4.io/plot_app?log=7aa3beda-229f-41d4-9999-1b889daf2213\r\nhttps://logs.px4.io/plot_app?log=6f45f725-efe9-4370-a6b2-694f76674b61",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/11897",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/11897",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/11897.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/11897.patch",
+      "merged_at": "2019-04-24T12:27:38Z"
+    }
+  },
+  {
+    "title": "FlightTaskAuto - Recover position control after local position reset",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/11636",
+    "body": "When the local position is invalid, the `_position` is set to `NAN` and the _triplet_target gets a `NAN`. In that state, the result of the if condition is always true (because `!(NAN > 0.001f) = true`) and the target cannot be updated anymore. \nThe target get stucks in a `NAN` condition even if local position is recovered and the vehicle drifts away. Changing the condition to (`_triplet_target - tmp_target < 0.001f`) returns a `false` if `_triplet_target` is NAN (because `NAN < 0.001f = false`) and the target gets a valid position as soon as local position is valid.\n\nWithout this PR:\nhttps://logs.px4.io/plot_app?log=501f7173-36a6-407d-b0da-4095bb020eb4\n![bokeh_plot(14)](https://user-images.githubusercontent.com/14822839/54275107-1a445500-458a-11e9-86eb-41ebe66fec4f.png)\n\nWith this PR:\nhttps://logs.px4.io/plot_app?log=0f4fc7cb-b228-41bc-ab0e-8d576cbc34fd\n![bokeh_plot(13)](https://user-images.githubusercontent.com/14822839/54275120-1fa19f80-458a-11e9-814d-f416c7545a00.png)\n(Note that the position setpoint is generated as soon as the local position is again valid)\n\n@sanderux This is why the XY position was not controlled during the land phase of the DQ of the flight test team after the EKF position reset.",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/11636",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/11636",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/11636.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/11636.patch",
+      "merged_at": "2019-03-15T04:42:25Z"
+    }
+  },
+  {
+    "title": "Navigator: RC loss yaw mission item",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/10291",
+    "body": "Added yaw mission item to `rcloss` state in `navigator`. This fixes the issue mentioned #10262 where the vehicle yaws in a seemingly random direction when RC is lost.\n\n**Test data / coverage**\nCurrent behavior:\n![selection_001](https://user-images.githubusercontent.com/37091262/44412682-c3f8c180-a526-11e8-9941-05af1f521a36.png)\nProposed behavior with this PR:\n![selection_002](https://user-images.githubusercontent.com/37091262/44414401-ed1b5100-a52a-11e8-837a-d81ea6349acb.png)\nhttps://review.px4.io/plot_app?log=2e96b2de-f511-49c0-a51a-a34ba7cabc13",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/10291",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/10291",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/10291.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/10291.patch",
+      "merged_at": "2018-08-21T19:05:56Z"
+    }
+  },
+  {
+    "title": "Navigator: Fix fixed-wing first order altitude hold",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/9850",
+    "body": "**Issue**\r\nNavigator's fixed-wing first-order altitude hold (FOH) is currently causing altitude reference oscillations when in any LOITER mode. See screenshot below. Not only altitude, but also pitch and throttle can thus oscillate significantly. We observed this during a recent test flight.\r\n\r\n![image](https://user-images.githubusercontent.com/2565608/42387985-53c6343e-8144-11e8-86d2-a42aecc4c5c0.png)\r\n\r\n\r\nLog file from SITL where this can be seen: https://review.px4.io/plot_app?log=f18c45ab-622e-4b1d-9819-03cfb06af2b5 . Here, after t=3:20 the true altitude setpoint is still the same as before t=2:20 (i.e. 630m AMSL) but the FOH logic just wrongly sets it to 660m and adds slight oscillations on top. The exact amount of oscillations depends on waypoint distance, altitude difference etc, but i have seen altitude ref oscillations of up to 30m, resulting in full pitch up/down of the aircraft.\r\n\r\n**Analysis**\r\nSee the commit for the location of the code where this is happening. Essentially, every time that the loiter radius of any loiter WP is larger than the acceptance radius calculated from the L1 turn distance, then the Navigator FOH would _not_ consider the waypoint reached and would thus not stop modifying the current altitude setpoint. This leads to the oscillations or offsets in the altitude reference. \r\n\r\n**Solution**\r\nIf in any loiter mode, consider the loiter radius times a factor of 1.2 (same as for the waypoint_reached logic [here](https://github.com/PX4/Firmware/blob/master/src/modules/navigator/mission_block.cpp#L217) as the acceptance radius. Tested in SITL, which should be sufficient for this case.\r\n\r\n@acfloria @ryanjAA @antiheavy FYI\r\n@dagar Made this PR as a quick hotfix independently of your PR at https://github.com/PX4/Firmware/pull/8883/files which supposedly also fixes this but is much larger and where it is more uncertain when this would be merged.",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/9850",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/9850",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/9850.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/9850.patch",
+      "merged_at": "2018-07-16T03:54:09Z"
+    }
+  },
+  {
+    "title": "commander: Fix pre-flight delta velocity bias check level",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/8446",
+    "body": "Previous check level was less than the max achievable by the estimator using current default parameters making the check ineffective. \r\n\r\nRaised in response to log https://review.px4.io/plot_app?log=f619bcb1-7427-4619-86d6-bc53e5e2024e discussed in this issue: https://github.com/PX4/Firmware/issues/7202#issuecomment-300754802\r\n\r\nCurrent ekf2 internal prediction time step is 8 msec and the default value of EKF2_ABL_LIM is 0.4 m/s/s, so the maximum delta velocity bias estimate output by the EKFis will clip at 3.2E-3 m/s using current parameter defaults. The pre flight check level has been updated to 3/4 that value (an equivalent accel bias of 0.3 m/s/s",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/8446",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/8446",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/8446.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/8446.patch",
+      "merged_at": "2017-12-12T00:41:43Z"
+    }
+  },
+  {
+    "title": "Fix uncontrolled height gain in hold/loiter mode",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/8418",
+    "body": "This fixes the height gain bug that occurs when using hold/loiter mode after taking off without GPS and gaining it's use in-flight. Reported by https://github.com/PX4/Firmware/issues/8400\r\n\r\nIt also fixes a bug causing the  height in the mavlink global position relative_alt message to be AMSL instead of height above takeoff location if GPS checks pass after takeoff.\r\n\r\nThe practice of allowing use of hold and position change commands via GCS inputs after a non-GPS takeoff has wider implications. In such a scenario, both RTL and geofencing are disabled, the user may not be aware of this, and unlike flying using stick inputs, it would be easy for the user to inadvertently fly the vehicle to a range where comms are lost or recovery using stick demands is impossible. \r\n\r\nThis has been tested in SITL using the following procedure:\r\n\r\n1) Modify the SITL startup script to inhibit GPS lock by adding 'gpssim set -t 0' at the end\r\n2) Run 'make posix_sitl_default gazebo' and wait for the ekf to initialise\r\n3) Select 'altitud'e mode on QGC, arm and takeoff using throttle stick\r\n4) Enable GPS lock using 'gpssim set -t 3'\r\n5) Wait for EKF GPS fusion to start\r\n6) Select 'hold' mode on QGC and command a positive altitude change using the slider and confirm completion\r\n7) Command a position change on QGC using the 'fly to click' feature and confirm completion\r\n8) Command a negative altitude change using the slider and confirm completion\r\n9) Command  a landing at current location.\r\n\r\nLog file here: https://logs.px4.io/plot_app?log=afea809a-e7fe-463c-bfe7-ef6296064330",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/8418",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/8418",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/8418.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/8418.patch",
+      "merged_at": "2017-12-07T08:20:17Z"
+    }
+  },
+  {
+    "title": "Fix vulnerability in pre flight checks and failsafe",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/8374",
+    "body": "The preflight checking of ekf2 health status as currently implemented in the commander has a two main vulnerabilities:\r\n\r\nIf GPS arming checks had been disabled via the COM_ARM_WO_GPS parameter, then this was also bypassing the ekf2 health checks.\r\nThe ekf2Check() function in the commander is only called once per mode change or arming request which means that the status is a snapshot of the EKF output and does not handle transient errors or noise well.\r\nThis PR improves the continuous ekf2 pre-arm checks and publishes the result as a boolean on the estimator_status message, which is then checked by the ekf2Check() function in the commander.\r\nIt also removes the bypass of ekf2Check()\r\n\r\nPreflight checking changes:\r\n\r\n- Separate the vertical and horizontal checks for use by local position validity reporting\r\n- Add checking of yaw using a decaying envelope filter to the horizontal checks.\r\n- Publish the check result to estimator_status topic.\r\n\r\nLog from testing of preflight checks here: https://logs.px4.io/plot_app?log=1bc435b7-86e3-4c73-82a5-a98c77949a3d. A magnet was used to cause large changes in magnetic yaw and fail preflight checks whilst attempting to arm.\r\n\r\n![screen shot 2017-11-27 at 1 29 43 pm](https://user-images.githubusercontent.com/3596952/33248223-073adfea-d378-11e7-85c6-472212894ea8.png)\r\n\r\nIf a RW vehicle takeoff off with a large yaw error, the EKF will start to reject the GPS data due to the inconsistency with the  INS solution. This combined with the position controller can cause an uncontrolled high speed flight condition. When this occurs, the EKF reports the navigation output as invalid, however after reset back to GPS, the navigation solution will be reported as valid again for a varying interval. This causes an interaction with the commander failsafe resulting in unpredictable transitions in and out of the failsafe mode. The solution implemented by https://github.com/PX4/Firmware/commit/39134325740a193fd755763e52faffe030073e5f\r\n\r\n- Checks for loss of navigation for up to 30 seconds after takeoff or until  a horizontal speed of 5 m/s has been achieved.\r\n- If the vehicle is not landed and the check is active, then the navigation is declared as failed if the velocity innovations fail for a continuous period of 1 second.\r\n- This will cause the local and global position and velocity validity to be latched false to prevent unsafe use of position control modes.\r\n- An emergency message 'CRITICAL NAVIGATION FAILURE - CHECK SENSOR CALIBRATION' is output to console and mavlink if the failsafe is activated.\r\n\r\nTest log generated using SITL with  90 degree misaligned compass data here: https://logs.px4.io/plot_app?log=6aa3a650-a65a-499a-a4ed-9ab287e9e764",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/8374",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/8374",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/8374.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/8374.patch",
+      "merged_at": "2017-12-04T09:09:56Z"
+    }
+  },
+  {
+    "title": "RTL fix RTL_LAND_DELAY behaviour",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/8351",
+    "body": "Fixed wing test flight reported RTL ignoring the RTL_LAND_DELAY setting and landing immediately.\r\nhttps://logs.px4.io/plot_app?log=c412160a-56e3-4154-b3d8-2c582aa9b9f1\r\n\r\nThis PR introduces a helper for float comparison, uses it to fix RTL_LAND_DELAY, and changes the RTL land notification to critical so that the user is alerted and the RTL state change is a little more obvious in logs.\r\n\r\nTested in SITL.\r\n\r\n@santiago3dr \r\n",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/8351",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/8351",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/8351.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/8351.patch",
+      "merged_at": "2017-11-26T19:40:14Z"
+    }
+  },
+  {
+    "title": "ecl: Update ekf2 to version that addresses known vulnerabilities",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/8276",
+    "body": "Addresses  loss of height accuracy during sustained yaw spinning and vulnerability to transient sensor errors after in-flight yaw alignment. See:\r\n\r\nhttps://github.com/PX4/ecl/pull/350\r\nhttps://github.com/PX4/ecl/pull/354\r\n\r\nNote the amount of stack allocation has had to be increased to accomodate the potential for larger data buffers created by PR350\r\n\r\nOne hardware test using a pixracer board https://logs.px4.io/plot_app?log=f3f3826d-f8a7-4fac-91ed-f57c4a2945c1",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/8276",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/8276",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/8276.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/8276.patch",
+      "merged_at": "2017-11-13T21:50:13Z"
+    }
+  },
+  {
+    "title": "navigator mission_block check range for loiter exit",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/7514",
+    "body": " - fixes #7510 \r\n\r\nI haven't figured out why next isn't populated, but this prevents the flyaway.\r\n\r\nTested in SITL. http://logs.px4.io/plot_app?log=2b554775-45c8-43c0-8be4-15d2ef9ff3bf\r\n\r\nThe MC yaw after VTOL back transition is wrong, but we can look at that later. FYI @sanderux ",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/7514",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/7514",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/7514.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/7514.patch",
+      "merged_at": "2017-06-29T19:28:27Z"
+    }
+  },
+  {
+    "title": "mc_pos_control: hotfix for possible thrust below minimum thrust setting",
+    "html_url": "https://github.com/PX4/PX4-Autopilot/pull/6392",
+    "body": "Hotfix after a crash because of a heavily negative desired thrust that got clipped to 0 by the mixer.\r\n0 thrust meant no more attitude tracking.\r\n\r\nFlight log that lead to these changes:\r\nhttp://review.px4.io/plot_app?log=90a3f19b-c8c2-44db-887f-0e6f5488aa84",
+    "state": "closed",
+    "pull_request": {
+      "url": "https://api.github.com/repos/PX4/PX4-Autopilot/pulls/6392",
+      "html_url": "https://github.com/PX4/PX4-Autopilot/pull/6392",
+      "diff_url": "https://github.com/PX4/PX4-Autopilot/pull/6392.diff",
+      "patch_url": "https://github.com/PX4/PX4-Autopilot/pull/6392.patch",
+      "merged_at": "2017-01-19T17:05:59Z"
+    }
+  }
+]
