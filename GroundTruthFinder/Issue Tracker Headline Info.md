@@ -1,6 +1,6 @@
 # Data from the PX4 GitHub Issue Tracker
 
-From 2779 (open and closed) issues labelled as bugs on the PX4 repo, 139 have flight logs uploaded to https://review.px4.io & 232 uploaded to https://logs.px4.io for a combined 371 issues labelled as bugs and containing some link to a log. The stats on them are as follows:
+From 2779 (open and closed) issues labelled as bugs on the PX4 repo, 371 issues labelled as bugs contain a link to a log (139 uploaded to https://review.px4.io & 232 uploaded to https://logs.px4.io). The stats on them are as follows:
 
 - 322 have no PR (57 open|265 closed)
 - 8 have unmerged PRs (2 open|6 closed)
