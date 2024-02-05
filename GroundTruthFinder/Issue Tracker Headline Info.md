@@ -12,49 +12,49 @@ It seems to me that focussing our understanding on the 41 merged PRs would help 
 
 ## Merged PR
 
-| title | html_url |
-|---|---|
-| PositionSmoothing: fix corner altitude bug | https://github.com/PX4/PX4-Autopilot/pull/22331 |
-| EKF2: Only fuse fake yaw when really needed | https://github.com/PX4/PX4-Autopilot/pull/20840 |
-| ekf2: reinit baro height on sensor or calibration change | https://github.com/PX4/PX4-Autopilot/pull/20818 |
-| Fix invalid offboard setpoints for fw pos control | https://github.com/PX4/PX4-Autopilot/pull/20669 |
-| Navigator: fix init of _mission_item, plus add guards for using mision_item.loiter_radius | https://github.com/PX4/PX4-Autopilot/pull/20464 |
-| Fix busy loop in gps module when using RTCM | https://github.com/PX4/PX4-Autopilot/pull/19906 |
-| Enable offboard actuator setpoints | https://github.com/PX4/PX4-Autopilot/pull/18581 |
-| Handle setpoint types properly in fw position controller | https://github.com/PX4/PX4-Autopilot/pull/18578 |
-| ekf: force fallback to baro if GPS is stopped while in GPS height mode | https://github.com/PX4/PX4-Autopilot/pull/18458 |
-| VTOL Fix back transition devaitions | https://github.com/PX4/PX4-Autopilot/pull/18350 |
-| Fix srf05 driver. | https://github.com/PX4/PX4-Autopilot/pull/18262 |
-| Fix flaps being deployed in manual flight modes for fixedwing | https://github.com/PX4/PX4-Autopilot/pull/18035 |
-| Fix bug in external Quadchute trigger (from PR 16691) | https://github.com/PX4/PX4-Autopilot/pull/17695 |
-| flashparams: Fix a null-pointer dereference crash | https://github.com/PX4/PX4-Autopilot/pull/17385 |
-| vtol_att_control: occasional tailsitter forward transition failure | https://github.com/PX4/PX4-Autopilot/pull/17310 |
-| mc_pos_control: add OFFBOARD takeoff intent | https://github.com/PX4/PX4-Autopilot/pull/17042 |
-| land_detector: continue respecting hover thrust throughout descent | https://github.com/PX4/PX4-Autopilot/pull/17041 |
-| Handle takeoff waypoints for rover | https://github.com/PX4/PX4-Autopilot/pull/16297 |
-| Increase uavcan main stack size | https://github.com/PX4/PX4-Autopilot/pull/15864 |
-| multicopter land detector ground contact fixes | https://github.com/PX4/PX4-Autopilot/pull/15083 |
-| [VTOL] impose minimum transition duration | https://github.com/PX4/PX4-Autopilot/pull/15080 |
-| Gyro filtering: apply IMU_GYRO_CUTOFF also to D-term | https://github.com/PX4/PX4-Autopilot/pull/15018 |
-| mc_pos_control: fix takeoff ramp gets amended by feed-forward | https://github.com/PX4/PX4-Autopilot/pull/14821 |
-| AutoSmoothVel: Fix straight line autocontinue | https://github.com/PX4/PX4-Autopilot/pull/14476 |
-| navigator: do not use fixed wing acceptance radius if in rotary wing… | https://github.com/PX4/PX4-Autopilot/pull/13693 |
-| AutoLineSmoothVel: fix constrain priority for autocontinue. | https://github.com/PX4/PX4-Autopilot/pull/13272 |
-| Multicopter mission guidance improvements | https://github.com/PX4/PX4-Autopilot/pull/12905 |
-| VTOL GPSF: fix fixed bank loiter | https://github.com/PX4/PX4-Autopilot/pull/12778 |
-| PositionControl: tiny minimal thrust length | https://github.com/PX4/PX4-Autopilot/pull/11987 |
-| RTL - Skip descend state in "Return then land immediately" mode | https://github.com/PX4/PX4-Autopilot/pull/11913 |
-| Pr fw att airspeed scaling | https://github.com/PX4/PX4-Autopilot/pull/11897 |
-| FlightTaskAuto - Recover position control after local position reset | https://github.com/PX4/PX4-Autopilot/pull/11636 |
-| Navigator: RC loss yaw mission item | https://github.com/PX4/PX4-Autopilot/pull/10291 |
-| Navigator: Fix fixed-wing first order altitude hold | https://github.com/PX4/PX4-Autopilot/pull/9850 |
-| commander: Fix pre-flight delta velocity bias check level | https://github.com/PX4/PX4-Autopilot/pull/8446 |
-| Fix uncontrolled height gain in hold/loiter mode | https://github.com/PX4/PX4-Autopilot/pull/8418 |
-| Fix vulnerability in pre flight checks and failsafe | https://github.com/PX4/PX4-Autopilot/pull/8374 |
-| RTL fix RTL_LAND_DELAY behaviour | https://github.com/PX4/PX4-Autopilot/pull/8351 |
-| ecl: Update ekf2 to version that addresses known vulnerabilities | https://github.com/PX4/PX4-Autopilot/pull/8276 |
-| navigator mission_block check range for loiter exit | https://github.com/PX4/PX4-Autopilot/pull/7514 |
-| mc_pos_control: hotfix for possible thrust below minimum thrust setting | https://github.com/PX4/PX4-Autopilot/pull/6392 |
+| issue title | issue id | html_url |
+|---|---|---|
+| PositionSmoothing: fix corner altitude bug | 22331 | https://github.com/PX4/PX4-Autopilot/pull/22331 |
+| EKF2: Only fuse fake yaw when really needed | 20840 | https://github.com/PX4/PX4-Autopilot/pull/20840 |
+| ekf2: reinit baro height on sensor or calibration change | 20818 | https://github.com/PX4/PX4-Autopilot/pull/20818 |
+| Fix invalid offboard setpoints for fw pos control | 20669 | https://github.com/PX4/PX4-Autopilot/pull/20669 |
+| Navigator: fix init of _mission_item, plus add guards for using mision_item.loiter_radius | 20464 | https://github.com/PX4/PX4-Autopilot/pull/20464 |
+| Fix busy loop in gps module when using RTCM | 19906 | https://github.com/PX4/PX4-Autopilot/pull/19906 |
+| Enable offboard actuator setpoints | 18581 | https://github.com/PX4/PX4-Autopilot/pull/18581 |
+| Handle setpoint types properly in fw position controller | 18578 | https://github.com/PX4/PX4-Autopilot/pull/18578 |
+| ekf: force fallback to baro if GPS is stopped while in GPS height mode | 18458 | https://github.com/PX4/PX4-Autopilot/pull/18458 |
+| VTOL Fix back transition devaitions | 18350 | https://github.com/PX4/PX4-Autopilot/pull/18350 |
+| Fix srf05 driver. | 18262 | https://github.com/PX4/PX4-Autopilot/pull/18262 |
+| Fix flaps being deployed in manual flight modes for fixedwing | 18035 | https://github.com/PX4/PX4-Autopilot/pull/18035 |
+| Fix bug in external Quadchute trigger (from PR 16691) | 17695 | https://github.com/PX4/PX4-Autopilot/pull/17695 |
+| flashparams: Fix a null-pointer dereference crash | 17385 | https://github.com/PX4/PX4-Autopilot/pull/17385 |
+| vtol_att_control: occasional tailsitter forward transition failure | 17310 | https://github.com/PX4/PX4-Autopilot/pull/17310 |
+| mc_pos_control: add OFFBOARD takeoff intent | 17042 | https://github.com/PX4/PX4-Autopilot/pull/17042 |
+| land_detector: continue respecting hover thrust throughout descent | 17041 | https://github.com/PX4/PX4-Autopilot/pull/17041 |
+| Handle takeoff waypoints for rover | 16297 | https://github.com/PX4/PX4-Autopilot/pull/16297 |
+| Increase uavcan main stack size | 15864 | https://github.com/PX4/PX4-Autopilot/pull/15864 |
+| multicopter land detector ground contact fixes | 15083 | https://github.com/PX4/PX4-Autopilot/pull/15083 |
+| [VTOL] impose minimum transition duration | 15080 | https://github.com/PX4/PX4-Autopilot/pull/15080 |
+| Gyro filtering: apply IMU_GYRO_CUTOFF also to D-term | 15018 | https://github.com/PX4/PX4-Autopilot/pull/15018 |
+| mc_pos_control: fix takeoff ramp gets amended by feed-forward | 14821 | https://github.com/PX4/PX4-Autopilot/pull/14821 |
+| AutoSmoothVel: Fix straight line autocontinue | 14476 | https://github.com/PX4/PX4-Autopilot/pull/14476 |
+| navigator: do not use fixed wing acceptance radius if in rotary wing… | 13693 | https://github.com/PX4/PX4-Autopilot/pull/13693 |
+| AutoLineSmoothVel: fix constrain priority for autocontinue. | 13272 | https://github.com/PX4/PX4-Autopilot/pull/13272 |
+| Multicopter mission guidance improvements | 12905 | https://github.com/PX4/PX4-Autopilot/pull/12905 |
+| VTOL GPSF: fix fixed bank loiter | 12778 | https://github.com/PX4/PX4-Autopilot/pull/12778 |
+| PositionControl: tiny minimal thrust length | 11987 | https://github.com/PX4/PX4-Autopilot/pull/11987 |
+| RTL - Skip descend state in "Return then land immediately" mode | 11913 | https://github.com/PX4/PX4-Autopilot/pull/11913 |
+| Pr fw att airspeed scaling | 11897 | https://github.com/PX4/PX4-Autopilot/pull/11897 |
+| FlightTaskAuto - Recover position control after local position reset | 11636 | https://github.com/PX4/PX4-Autopilot/pull/11636 |
+| Navigator: RC loss yaw mission item | 10291 | https://github.com/PX4/PX4-Autopilot/pull/10291 |
+| Navigator: Fix fixed-wing first order altitude hold | 9850 | https://github.com/PX4/PX4-Autopilot/pull/9850 |
+| commander: Fix pre-flight delta velocity bias check level | 8446 | https://github.com/PX4/PX4-Autopilot/pull/8446 |
+| Fix uncontrolled height gain in hold/loiter mode | 8418 | https://github.com/PX4/PX4-Autopilot/pull/8418 |
+| Fix vulnerability in pre flight checks and failsafe | 8374 | https://github.com/PX4/PX4-Autopilot/pull/8374 |
+| RTL fix RTL_LAND_DELAY behaviour | 8351 | https://github.com/PX4/PX4-Autopilot/pull/8351 |
+| ecl: Update ekf2 to version that addresses known vulnerabilities | 8276 | https://github.com/PX4/PX4-Autopilot/pull/8276 |
+| navigator mission_block check range for loiter exit | 7514 | https://github.com/PX4/PX4-Autopilot/pull/7514 |
+| mc_pos_control: hotfix for possible thrust below minimum thrust setting | 6392 | https://github.com/PX4/PX4-Autopilot/pull/6392 |
 
 ## Unmerged PR
 
