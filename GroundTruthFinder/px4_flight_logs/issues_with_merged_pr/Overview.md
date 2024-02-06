@@ -19,20 +19,20 @@
 | vtol_att_control: occasional tailsitter forward transition failure | 17310 | Has two logs showing the issue | https://github.com/PX4/PX4-Autopilot/pull/17310 |
 | ~~mc_pos_control: add OFFBOARD takeoff intent~~ | ~~17042~~ | ~~Needs to be dropped, doesn't have log (website failure)!~~ | ~~https://github.com/PX4/PX4-Autopilot/pull/17042~~ |
 | ~~land_detector: continue respecting hover thrust throughout descent~~ | ~~17041~~ | ~~Needs to be dropped, doesn't have log (website failure)!~~ | ~~https://github.com/PX4/PX4-Autopilot/pull/17041~~ |
-| Handle takeoff waypoints for rover | 16297 | I believe this only has a log of a successful run, may need to be dropped | https://github.com/PX4/PX4-Autopilot/pull/16297 |
-| Increase uavcan main stack size | 15864 | I believe this only has a log of a successful run, may need to be dropped | https://github.com/PX4/PX4-Autopilot/pull/15864 |
+| *Handle takeoff waypoints for rover* | *16297* | *I believe this only has a log of a successful run, may need to be dropped* | *https://github.com/PX4/PX4-Autopilot/pull/16297* |
+| *Increase uavcan main stack size* | *15864* | *I believe this only has a log of a successful run, may need to be dropped* | *https://github.com/PX4/PX4-Autopilot/pull/15864* |
 | multicopter land detector ground contact fixes | 15083 | This PR has multiple associated logs, needs exploration | https://github.com/PX4/PX4-Autopilot/pull/15083 |
-| [VTOL] impose minimum transition duration | 15080 | I believe this only has a log of a successful run, may need to be dropped | https://github.com/PX4/PX4-Autopilot/pull/15080 |
+| *[VTOL] impose minimum transition duration* | *15080* | *I believe this only has a log of a successful run, may need to be dropped* | *https://github.com/PX4/PX4-Autopilot/pull/15080* |
 | Gyro filtering: apply IMU_GYRO_CUTOFF also to D-term | 15018 | This PR has multiple associated logs, needs exploration | https://github.com/PX4/PX4-Autopilot/pull/15018 |
 | mc_pos_control: fix takeoff ramp gets amended by feed-forward | 14821 | Contains before and after PR logs | https://github.com/PX4/PX4-Autopilot/pull/14821 |
 | AutoSmoothVel: Fix straight line autocontinue | 14476 | Contains before and after PR logs | https://github.com/PX4/PX4-Autopilot/pull/14476 |
 | navigator: do not use fixed wing acceptance radius if in rotary wing… | 13693 | Contains single log displaying issue + mission log | https://github.com/PX4/PX4-Autopilot/pull/13693 |
 | AutoLineSmoothVel: fix constrain priority for autocontinue. | 13272 | Contains before and after PR logs | https://github.com/PX4/PX4-Autopilot/pull/13272 |
 | Multicopter mission guidance improvements | 12905 | This PR has multiple associated logs, needs exploration | https://github.com/PX4/PX4-Autopilot/pull/12905 |
-| VTOL GPSF: fix fixed bank loiter | 12778 | I believe this only has a log of a successful run, may need to be dropped | https://github.com/PX4/PX4-Autopilot/pull/12778 |
+| *VTOL GPSF: fix fixed bank loiter* | *12778* | *I believe this only has a log of a successful run, may need to be dropped* | *https://github.com/PX4/PX4-Autopilot/pull/12778* |
 | PositionControl: tiny minimal thrust length | 11987 | Contains before and after PR logs | https://github.com/PX4/PX4-Autopilot/pull/11987 |
 | RTL - Skip descend state in "Return then land immediately" mode | 11913 | This PR has multiple associated logs, needs exploration | https://github.com/PX4/PX4-Autopilot/pull/11913 |
-| Pr fw att airspeed scaling | 11897 | I believe this only has a log of a successful run, may need to be dropped | https://github.com/PX4/PX4-Autopilot/pull/11897 |
+| *Pr fw att airspeed scaling* | *11897* | *I believe this only has a log of a successful run, may need to be dropped* | *https://github.com/PX4/PX4-Autopilot/pull/11897* |
 | FlightTaskAuto - Recover position control after local position reset | 11636 | Contains before and after PR logs | https://github.com/PX4/PX4-Autopilot/pull/11636 |
 | *Navigator: RC loss yaw mission item* | *10291* | *I believe this only has a log of a successful run, may need to be dropped* | *https://github.com/PX4/PX4-Autopilot/pull/10291* |
 | ~~Navigator: Fix fixed-wing first order altitude hold~~ | ~~9850~~ | ~~Needs to be dropped, doesn't have log (website failure)!~~ | ~~https://github.com/PX4/PX4-Autopilot/pull/9850~~ |
