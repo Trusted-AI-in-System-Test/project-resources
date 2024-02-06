@@ -13,12 +13,12 @@ It seems to me that focussing our understanding on the 41 merged PRs would help 
 ## Merged PR
 
 | issue title | issue id | html_url |
-|---|---|---|
+| ---- | ---- | ---- |
 | PositionSmoothing: fix corner altitude bug | 22331 | https://github.com/PX4/PX4-Autopilot/pull/22331 |
 | EKF2: Only fuse fake yaw when really needed | 20840 | https://github.com/PX4/PX4-Autopilot/pull/20840 |
-| ekf2: reinit baro height on sensor or calibration change | 20818 | https://github.com/PX4/PX4-Autopilot/pull/20818 |
+| ekf2: reinit baro height on sensor or calibration change | 20818 |  https://github.com/PX4/PX4-Autopilot/pull/20818 |
 | Fix invalid offboard setpoints for fw pos control | 20669 | https://github.com/PX4/PX4-Autopilot/pull/20669 |
-| Navigator: fix init of _mission_item, plus add guards for using mision_item.loiter_radius | 20464 | https://github.com/PX4/PX4-Autopilot/pull/20464 |
+| Navigator: fix init of mission_item, plus add guards for using mision_item.loiter_radius | 20464 | https://github.com/PX4/PX4-Autopilot/pull/20464 |
 | Fix busy loop in gps module when using RTCM | 19906 | https://github.com/PX4/PX4-Autopilot/pull/19906 |
 | Enable offboard actuator setpoints | 18581 | https://github.com/PX4/PX4-Autopilot/pull/18581 |
 | Handle setpoint types properly in fw position controller | 18578 | https://github.com/PX4/PX4-Autopilot/pull/18578 |
@@ -34,7 +34,7 @@ It seems to me that focussing our understanding on the 41 merged PRs would help 
 | Handle takeoff waypoints for rover | 16297 | https://github.com/PX4/PX4-Autopilot/pull/16297 |
 | Increase uavcan main stack size | 15864 | https://github.com/PX4/PX4-Autopilot/pull/15864 |
 | multicopter land detector ground contact fixes | 15083 | https://github.com/PX4/PX4-Autopilot/pull/15083 |
-| [VTOL] impose minimum transition duration | 15080 | https://github.com/PX4/PX4-Autopilot/pull/15080 |
+| VTOL impose minimum transition duration | 15080 | https://github.com/PX4/PX4-Autopilot/pull/15080 |
 | Gyro filtering: apply IMU_GYRO_CUTOFF also to D-term | 15018 | https://github.com/PX4/PX4-Autopilot/pull/15018 |
 | mc_pos_control: fix takeoff ramp gets amended by feed-forward | 14821 | https://github.com/PX4/PX4-Autopilot/pull/14821 |
 | AutoSmoothVel: Fix straight line autocontinue | 14476 | https://github.com/PX4/PX4-Autopilot/pull/14476 |
@@ -55,6 +55,7 @@ It seems to me that focussing our understanding on the 41 merged PRs would help 
 | ecl: Update ekf2 to version that addresses known vulnerabilities | 8276 | https://github.com/PX4/PX4-Autopilot/pull/8276 |
 | navigator mission_block check range for loiter exit | 7514 | https://github.com/PX4/PX4-Autopilot/pull/7514 |
 | mc_pos_control: hotfix for possible thrust below minimum thrust setting | 6392 | https://github.com/PX4/PX4-Autopilot/pull/6392 |
+
 
 ## Unmerged PR
 
